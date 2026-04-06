@@ -42,6 +42,39 @@ This skill uses:
 9. Lane labels are derived from discovery, not hand-authored catalogs.
 10. The orchestrator owns lane creation, escalation, repair, reuse, and delegation.
 
+## CRITICAL: Two hard rules the orchestrator must never break
+
+### Rule 1 — Use `tmux_runtime.sh` helpers and spawn scripts, never raw tmux commands
+
+**NEVER** compose raw `tmux send-keys`, `tmux new-window`, `tmux kill-window`, `tmux rename-window`, or `tmux capture-pane` commands directly. Always use `tmux_runtime.sh` helpers:
+
+```bash
+WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"   # not tmux new-window
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "prompt text"                # not tmux send-keys
+~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"                               # not tmux capture-pane
+~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"                                # not tmux kill-window
+```
+
+For provider launch, always call the spawn scripts:
+
+```bash
+~/skills/tmux_mode/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
+~/skills/tmux_mode/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
+~/skills/tmux_mode/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
+```
+
+If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/models`, `C-t`, `codex --sandbox`, `opencode`, `amp`, or any raw tmux or provider-specific commands, **stop — you are doing it wrong**. Use the helpers.
+
+### Rule 2 — Wait for callbacks, never sleep-poll for results
+
+**NEVER** use `sleep` loops, `sleep`-then-capture-pane polling, or any timer-based waiting to check if a lane has finished its work. The architecture is **callback-driven**:
+
+- When a lane finishes, it signals the orchestrator via `tmux send-keys -t "orchestrator"`.
+- The orchestrator processes signals as they arrive — it does not poll.
+- The only acceptable use of `sleep` is the 1-second gap between injecting text and sending `Enter` in a `tmux send-keys` chain.
+
+If you find yourself writing `while true; do sleep N; capture-pane; grep ...; done` or any variation, **stop — you are doing it wrong**. Wait for the lane to signal you.
+
 ---
 
 # Activation
@@ -71,13 +104,13 @@ Activate teardown when the user says:
 3. Kill each managed window:
 
    ```bash
-   tmux kill-window -t "$WINDOW_NAME"
+   ~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_NAME"
    ```
 
 4. Confirm no managed windows remain:
 
    ```bash
-   tmux list-windows
+   ~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
    ```
 
 5. Inform the user that all tmux mode windows have been closed
@@ -578,7 +611,7 @@ Write a lane-local request file in `requests/` with:
 Then signal the orchestrator:
 
 ```bash
-tmux send-keys -t "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml. Check it." && sleep 1 && tmux send-keys -t "orchestrator" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml. Check it."
 ```
 
 The agent should then continue with whatever it can do independently while waiting. It does not block unless the answer is strictly required.
@@ -594,7 +627,7 @@ If no other lane owns the topic:
 5. Signal the orchestrator:
 
 ```bash
-tmux send-keys -t "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml with self_resolved=true. Check it." && sleep 1 && tmux send-keys -t "orchestrator" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml with self_resolved=true. Check it."
 ```
 
 ## Orchestrator flow: routing a question
@@ -613,8 +646,8 @@ When the orchestrator receives a board request signal:
    - inject keystrokes into the target window with the question and the path to the board entry:
 
 ```bash
-TARGET_WINDOW_ID="@12" &&
-tmux send-keys -t "$TARGET_WINDOW_ID" "Board question q-001 from pay|code|md|api: 'Does the settlement cutoff apply in gateway local time or UTC?' Read .tmux/shared_board.yaml entry q-001. Write your answer to .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Then signal the orchestrator." && sleep 1 && tmux send-keys -t "$TARGET_WINDOW_ID" "" Enter
+TARGET_WINDOW_ID="@12"
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$TARGET_WINDOW_ID" "Board question q-001 from pay|code|md|api: 'Does the settlement cutoff apply in gateway local time or UTC?' Read .tmux/shared_board.yaml entry q-001. Write your answer to .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Then signal the orchestrator."
 ```
 
    - update the board entry's `status` to `routed`
@@ -633,7 +666,7 @@ When the target agent receives a board question via keystrokes:
 4. Signal the orchestrator:
 
 ```bash
-tmux send-keys -t "orchestrator" "Board answer posted at .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Check it." && sleep 1 && tmux send-keys -t "orchestrator" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board answer posted at .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Check it."
 ```
 
 ## Orchestrator flow: delivering the answer
@@ -646,8 +679,8 @@ When the orchestrator receives an answered signal:
 4. Inject keystrokes into the questioner window with the answer:
 
 ```bash
-QUESTIONER_WINDOW_ID="@13" &&
-tmux send-keys -t "$QUESTIONER_WINDOW_ID" "Board answer for q-001: '<answer text>'. Acknowledge by writing .tmux/pay-code-md-api/requests/ack-q-001.yaml and then signal the orchestrator." && sleep 1 && tmux send-keys -t "$QUESTIONER_WINDOW_ID" "" Enter
+QUESTIONER_WINDOW_ID="@13"
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$QUESTIONER_WINDOW_ID" "Board answer for q-001: '<answer text>'. Acknowledge by writing .tmux/pay-code-md-api/requests/ack-q-001.yaml and then signal the orchestrator."
 ```
 
 ## Questioner flow: acknowledging
@@ -659,7 +692,7 @@ When the questioner receives the answer:
 3. Signal the orchestrator:
 
 ```bash
-tmux send-keys -t "orchestrator" "Board ack posted at .tmux/pay-code-md-api/requests/ack-q-001.yaml. Check it." && sleep 1 && tmux send-keys -t "orchestrator" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board ack posted at .tmux/pay-code-md-api/requests/ack-q-001.yaml. Check it."
 ```
 
 ## Orchestrator flow: acknowledging
@@ -692,37 +725,35 @@ Each `.tmux/<lane_key>/` directory implies the lane should exist.
 Check live windows using:
 
 ```bash
-tmux list-windows
+~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
 ```
 
 For each lane directory:
 
 1. Compute expected window name from `meta.yaml` field `tmux_window_name`
-2. Check `tmux list-windows`
+2. Check `~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows`
 3. If present → resolve the current live `tmux_window_id` from tmux and refresh metadata before reusing it
 4. If missing → create the window
 5. If broken or stale → reset it
 
 ## Create window
 
-Always use `-d` to create the window without stealing focus from the orchestrator. Never run a bare `tmux rename-window` after `tmux new-window -d`; that can rename the current orchestrator window instead of the newly created lane window. Capture the new window id first, then target that exact id:
+Always use `create_window` from `tmux_runtime.sh`. It handles `-d` (no focus steal), captures the window id, and renames atomically — avoiding the common bug where a bare `tmux rename-window` renames the orchestrator window instead:
 
 ```bash
-WINDOW_NAME="pay|doc|lg|settlement" &&
-WINDOW_ID="$(tmux new-window -d -P -F '#{window_id}')" &&
-tmux rename-window -t "$WINDOW_ID" "$WINDOW_NAME"
+WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 ## Kill broken window
 
 ```bash
-tmux kill-window -t "$WINDOW_ID"
+~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
 ```
 
 ## Rename drifted window
 
 ```bash
-tmux rename-window -t "$OLD_NAME" "$NEW_NAME"
+~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "$OLD_NAME" "$NEW_NAME"
 ```
 
 ## Window name is permanent
@@ -973,9 +1004,7 @@ Provisioning has two phases:
 ### Step 1: create window
 
 ```bash
-WINDOW_NAME="pay|doc|lg|settlement" &&
-WINDOW_ID="$(tmux new-window -d -P -F '#{window_id}')" &&
-tmux rename-window -t "$WINDOW_ID" "$WINDOW_NAME"
+WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 Immediately persist both values:
@@ -987,14 +1016,14 @@ All live tmux operations must target `"$WINDOW_ID"`, not `"$WINDOW_NAME"`.
 
 ### Step 2: provision runtime
 
-For `beta`, `delta`, and `gamma`, the checked-in helper scripts under this skill's `scripts/` directory are the canonical implementation of provider-specific launch and selector behavior. The orchestrator should call those helpers instead of replaying raw `/model`, `/models`, `C-t`, or Amp mode-switch keystrokes inline.
+**MANDATORY:** For `beta`, `delta`, and `gamma`, call the checked-in helper scripts. Do NOT replay raw `/model`, `/models`, `C-t`, `codex --sandbox`, `opencode`, `amp`, or any provider picker keystrokes inline. The scripts are the single source of truth for launch sequences. See "Rule 1" under Core principles.
 
 #### Claude (reserved / future provider)
 
 Claude is reserved for future use. Do not select it during normal orchestration unless `runtime_bands` explicitly maps a lane class to Claude.
 
 ```bash
-tmux send-keys -t "$WINDOW_ID" "claude --dangerously-skip-permissions" && sleep 1 && tmux send-keys -t "$WINDOW_ID" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "claude --dangerously-skip-permissions"
 ```
 
 1. Wait for readiness
@@ -1284,18 +1313,18 @@ Update status.yaml when done.
 If blocked, write needs_input state and your blocking question.
 If you discover reusable knowledge, write a context delta to .tmux/pay-doc-lg-settlement/context/last_delta.yaml.
 When done, signal the orchestrator by running:
-  tmux send-keys -t "orchestrator" "Task task-004 is complete. Result at .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml" && sleep 1 && tmux send-keys -t "orchestrator" "" Enter
+  ~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Task task-004 is complete. Result at .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml"
 ```
 
-**All CLIs:** always send `Enter` as a separate keystroke command after injecting a prompt, but show the sequence as one shell line chained with `&&`:
+**All CLIs:** always use `tmux_runtime.sh send-commands` to inject prompts. It handles the text, sleep, and Enter automatically:
 
 ```bash
-tmux send-keys -t "$WINDOW_ID" "your prompt here" && sleep 1 && tmux send-keys -t "$WINDOW_ID" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "your prompt here"
 ```
 
-If the CLI in that window is already launched, do not relaunch the binary for the next prompt. Just inject the next prompt with `tmux send-keys ... && sleep 1 && tmux send-keys ... "" Enter`.
+If the CLI in that window is already launched, do not relaunch the binary for the next prompt. Just call `tmux_runtime.sh send-commands` with the next prompt.
 
-Before injecting a prompt, capture the pane and make sure there is no update notice, warning, modal, or other obstruction sitting on screen. If there is, dismiss it first and only then send the prompt. Use `tmux_window_id` for all live tmux commands.
+Before injecting a prompt, capture the pane (`~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"`) and make sure there is no update notice, warning, modal, or other obstruction sitting on screen. If there is, dismiss it first and only then send the prompt. Use `tmux_window_id` for all live tmux commands.
 
 Keep keystrokes thin. Put real detail in files.
 
@@ -1735,7 +1764,7 @@ When provisioning a tmux window:
 1. compute `dir_abbrev` = short abbreviation of `basename(workdir)` (e.g. `payments` → `pay`, `frontend` → `fe`, `infrastructure` → `inf`)
 2. compute `lane_key = <dir_abbrev>-<doc_or_code>-<size>-<lane>` (internal identity, stored in metadata)
 3. compute `window_name = <dir_abbrev>|<doc_or_code>|<size>|<lane>` (e.g. `pay|doc|lg|settlement`)
-4. create the window by capturing `WINDOW_ID="$(tmux new-window -d -P -F '#{window_id}')"`, then rename that exact window with `tmux rename-window -t "$WINDOW_ID" "$window_name"` and persist both `tmux_window_name` and `tmux_window_id`
+4. create the window with `WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "$window_name")"` and persist both `tmux_window_name` and `tmux_window_id`
 
 If the window already exists but has the wrong name, rename it to match the rule.
 
@@ -1781,8 +1810,10 @@ Do not keep re-implementing raw `tmux send-keys` sequences inline. Put the repea
 Use the installed helper scripts with a stable API such as:
 
 ```bash
-source ~/skills/tmux_mode/scripts/tmux_runtime.sh
-send_commands "$WINDOW_ID" "commands here"
+WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "commands here"
+~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
+~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
 ~/skills/tmux_mode/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
 ~/skills/tmux_mode/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ~/skills/tmux_mode/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "xhigh"
@@ -1795,14 +1826,17 @@ The abstraction goal is:
 * the installed helpers default to a 3-second timeout and should fail fast when the required runtime state does not appear; Beta/Codex uses a 5-second default because cold start is slower in practice
 * failures return non-zero and print a specific error message that says what check failed
 
-Recommended primitive helpers inside `~/skills/tmux_mode/scripts/tmux_runtime.sh`:
+Subcommands available via `~/skills/tmux_mode/scripts/tmux_runtime.sh <subcommand>`:
 
-* `send_commands WINDOW_ID "text"` — send text, sleep, then send `Enter`
-* `send_key WINDOW_ID KEY` — send a single special key such as `Enter` or `C-t`
-* `capture_pane WINDOW_ID` — full pane capture for diagnostics
-* `capture_screen WINDOW_ID` — capture the full visible pane for runtime verification
-* `wait_for_screen WINDOW_ID REGEX` — poll until the visible pane matches the required runtime state
-* `fail MESSAGE` — print a standardized failure and return non-zero
+* `create-window WINDOW_NAME` — create a detached window, rename it, and print the live `window_id`
+* `kill-window WINDOW_ID` — kill a window by id
+* `rename-window OLD NEW` — rename a window
+* `list-windows` — list all tmux windows
+* `send-commands WINDOW_ID "text"` — send text, sleep, then send `Enter`
+* `send-key WINDOW_ID KEY` — send a single special key such as `Enter` or `C-t`
+* `capture-pane WINDOW_ID` — full pane capture for diagnostics
+* `capture-screen WINDOW_ID` — capture the full visible pane for runtime verification
+* `wait-screen WINDOW_ID REGEX` — poll until the visible pane matches the required runtime state
 
 Recommended provider adapters:
 
@@ -1995,7 +2029,7 @@ For each lane with `task_id != null`:
 15. write task file to inbox (with `orchestrator_window: "orchestrator"`)
 16. inject keystrokes telling the worker to read the task file and signal back when done
     → append [dispatch] entry to journal
-17. monitor status and pane output (tmux capture-pane -p -t "$WINDOW_ID")
+17. **wait for inbound signals** — do NOT sleep-poll or loop-capture-pane to check progress; the lane will signal you when it is done, blocked, or has a board request
 
 On any inbound signal from a worker (task done, board request, needs input):
 18. read the signal to determine type:
@@ -2037,7 +2071,8 @@ This skill is working correctly when:
 * lanes write lane-local request files; orchestrator updates `shared_board.yaml` and `lanes.yaml`
 * cross-lane questions flow through `shared_board.yaml` via orchestrator keystrokes
 * self-resolving agents update their scope before and after digging
-* the chain reaction (post → route → answer → deliver → ack) completes without timer-based polling
+* the chain reaction (post → route → answer → deliver → ack) completes without timer-based polling — the orchestrator never sleep-polls for lane completion
+* provider launch always uses `spawn_beta.sh`, `spawn_delta.sh`, or `spawn_gamma.sh` — never inline `tmux send-keys` with raw provider keystrokes
 * orchestrator appends to `.tmux/journal.md` on every significant event — dispatch, complete, board, escalation, decision
 * each lane maintains its own `.tmux/<lane_key>/logs/journal.md` independently
 * a fresh orchestrator instance can reconstruct full state from `.tmux/journal.md` + `lanes.yaml` + `status.yaml` files
@@ -2059,46 +2094,42 @@ Use these defaults when the task has not yet been decomposed further:
 
 # Minimal tmux command cheatsheet
 
-Provider launch, model selection, reasoning selection, and Amp mode switching are intentionally omitted here. Use `scripts/spawn_beta.sh`, `scripts/spawn_delta.sh`, and `scripts/spawn_gamma.sh` instead of replaying those provider-specific keystrokes by hand.
+All tmux operations go through `~/skills/tmux_mode/scripts/tmux_runtime.sh`. Provider launch uses `spawn_beta.sh`, `spawn_delta.sh`, and `spawn_gamma.sh`. **Never use raw `tmux` commands directly.**
 
 ## Create window
 
 ```bash
-WINDOW_NAME="pay|doc|lg|settlement" &&
-WINDOW_ID="$(tmux new-window -d -P -F '#{window_id}')" &&
-tmux rename-window -t "$WINDOW_ID" "$WINDOW_NAME"
+WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 ## Send command
 
-Always send Enter as a separate tmux command, chained with `&&`:
-
 ```bash
-tmux send-keys -t "$WINDOW_ID" "command" && sleep 1 && tmux send-keys -t "$WINDOW_ID" "" Enter
+~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "command"
 ```
 
 ## Capture output
 
 ```bash
-tmux capture-pane -p -t "$WINDOW_ID"
+~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
 ```
 
 ## List windows
 
 ```bash
-tmux list-windows
+~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
 ```
 
 ## Kill window
 
 ```bash
-tmux kill-window -t "$WINDOW_ID"
+~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
 ```
 
 ## Rename window
 
 ```bash
-tmux rename-window -t "old" "new"
+~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "old" "new"
 ```
 
 ---
@@ -2110,7 +2141,7 @@ When the user says **"tmux mode"**, switch into discovery-first orchestrator beh
 * immediately rename the current tmux window to `orchestrator`:
 
   ```bash
-  tmux rename-window "orchestrator"
+  ~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "$(tmux display-message -p '#{window_id}')" "orchestrator"
   ```
 
 * check if `.tmux/` exists — if yes, run the resume protocol: read journal + state files, summarize to the user, ask if they have questions before continuing

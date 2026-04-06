@@ -11,6 +11,50 @@ fail() {
   return 1
 }
 
+# ---------------------------------------------------------------------------
+# Window management
+# ---------------------------------------------------------------------------
+
+create_window() {
+  local window_name="${1:?window_name is required}"
+
+  local window_id
+  window_id="$(tmux new-window -d -P -F '#{window_id}')" || {
+    fail "failed to create tmux window"
+    return 1
+  }
+  tmux rename-window -t "$window_id" "$window_name" || {
+    fail "failed to rename window $window_id to $window_name"
+    return 1
+  }
+  # Print the live window id so callers can capture it:
+  #   WINDOW_ID="$(create_window "pay|doc|lg|settlement")"
+  printf '%s\n' "$window_id"
+}
+
+kill_window() {
+  local window_id="${1:?window_id is required}"
+
+  tmux kill-window -t "$window_id" 2>/dev/null || {
+    fail "failed to kill window $window_id (may already be gone)"
+    return 1
+  }
+}
+
+rename_window() {
+  local old="${1:?old window name/id is required}"
+  local new="${2:?new window name is required}"
+
+  tmux rename-window -t "$old" "$new" || {
+    fail "failed to rename window $old to $new"
+    return 1
+  }
+}
+
+list_windows() {
+  tmux list-windows "$@"
+}
+
 send_key() {
   local window_id="${1:?window_id is required}"
   local key="${2:?key is required}"
@@ -118,6 +162,10 @@ wait_for_footer_markers() {
 tmux_runtime_usage() {
   cat <<'EOF'
 Usage:
+  tmux_runtime.sh create-window WINDOW_NAME
+  tmux_runtime.sh kill-window WINDOW_ID
+  tmux_runtime.sh rename-window OLD NEW
+  tmux_runtime.sh list-windows [TMUX_ARGS...]
   tmux_runtime.sh send-commands WINDOW_ID TEXT [ENTER_DELAY]
   tmux_runtime.sh send-key WINDOW_ID KEY
   tmux_runtime.sh capture-pane WINDOW_ID
@@ -132,6 +180,22 @@ tmux_runtime_main() {
   local command="${1:-}"
 
   case "$command" in
+    create-window)
+      shift
+      create_window "$@"
+      ;;
+    kill-window)
+      shift
+      kill_window "$@"
+      ;;
+    rename-window)
+      shift
+      rename_window "$@"
+      ;;
+    list-windows)
+      shift
+      list_windows "$@"
+      ;;
     send-commands)
       shift
       send_commands "$@"
