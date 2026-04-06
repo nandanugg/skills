@@ -29,6 +29,8 @@ This skill uses:
 - **`.tmux/` = durable reconciler**
 - **context lanes = persistent warm specialists**
 
+All checked-in tmux helper scripts live at the fixed path prefix `~/skills/tmux_mode/scripts/`. Do not derive this path from the current repo location or workdir.
+
 ## Core principles
 
 1. Each lane window is persistent and reusable.
@@ -69,9 +71,9 @@ If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/mod
 
 **NEVER** use `sleep` loops, `sleep`-then-capture-pane polling, or any timer-based waiting to check if a lane has finished its work. The architecture is **callback-driven**:
 
-- When a lane finishes, it signals the orchestrator via `tmux send-keys -t "orchestrator"`.
+- When a lane finishes or needs to report status back to the orchestrator, it must signal via `~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "..."`.
 - The orchestrator processes signals as they arrive — it does not poll.
-- The only acceptable use of `sleep` is the 1-second gap between injecting text and sending `Enter` in a `tmux send-keys` chain.
+- The only acceptable use of `sleep` is inside the checked-in helper scripts such as `tmux_runtime.sh send-commands`.
 
 If you find yourself writing `while true; do sleep N; capture-pane; grep ...; done` or any variation, **stop — you are doing it wrong**. Wait for the lane to signal you.
 
@@ -1131,7 +1133,7 @@ Context hygiene: work from the injected task file, lane-local files, and explici
 
 Journaling: maintain logs/journal.md. Append a timestamped markdown entry when you receive a task, make a significant finding, post or receive a board question, or complete/block.
 
-Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
+Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator with `tmux_runtime.sh send-commands`. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator the same way so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
 
 Await your first task in inbox/.
 ```
@@ -1156,12 +1158,12 @@ Context hygiene: work from the injected task file, lane-local files, and explici
 
 Journaling: maintain logs/journal.md. Append a timestamped markdown entry when you receive a task, make a significant finding, post or receive a board question, or complete/block. Start now with a [resumed] entry.
 
-Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
+Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator with `tmux_runtime.sh send-commands`. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator the same way so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
 
 If an interrupted task exists, continue it. Otherwise, set status.yaml state to idle and await dispatch.
 ```
 
-Fill `<placeholders>` from the context profile and lane metadata before injecting via `tmux send-keys`.
+Fill `<placeholders>` from the context profile and lane metadata before injecting via `tmux_runtime.sh send-commands`.
 
 ---
 
@@ -1286,7 +1288,7 @@ Input goes in by:
 1. writing a task file into `inbox/`
 2. injecting keystrokes telling the agent to read it and respond by file
 
-The task file must include the orchestrator window address so the worker can signal completion back. The orchestrator window name is always `orchestrator` (the main Claude Code window running tmux mode).
+The task file must include the orchestrator window address so the worker can signal completion back. The orchestrator window name is always `orchestrator` (the main Claude Code window running tmux mode), and the worker must use `tmux_runtime.sh send-commands` for that callback instead of raw `tmux send-keys`.
 
 `task_id` is orchestrator-minted and immutable. Lanes never mint global task ids.
 
