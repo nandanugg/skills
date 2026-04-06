@@ -5,6 +5,7 @@
 TMUX_MODE_ENTER_DELAY_DEFAULT="${TMUX_MODE_ENTER_DELAY_DEFAULT:-0.2}"
 TMUX_MODE_POLL_INTERVAL="${TMUX_MODE_POLL_INTERVAL:-0.1}"
 TMUX_MODE_TIMEOUT_DEFAULT="${TMUX_MODE_TIMEOUT_DEFAULT:-3}"
+TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT="${TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT:-0.1}"
 
 fail() {
   printf 'tmux_mode error: %s\n' "$*" >&2
@@ -17,12 +18,17 @@ fail() {
 
 create_window() {
   local window_name="${1:?window_name is required}"
+  local rename_delay="${2:-$TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT}"
 
   local window_id
   window_id="$(tmux new-window -d -P -F '#{window_id}')" || {
     fail "failed to create tmux window"
     return 1
   }
+
+  # Oh My Tmux can briefly override the initial window name on creation.
+  sleep "$rename_delay"
+
   tmux rename-window -t "$window_id" "$window_name" || {
     fail "failed to rename window $window_id to $window_name"
     return 1
