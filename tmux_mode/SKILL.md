@@ -830,6 +830,9 @@ providers:
       gpt-5.3-codex:
         picker_label: "GPT-5.3 Codex OpenAI"
         note: "coding-specialist OpenCode model"
+      gemini-3.1-pro:
+        picker_label: "Gemini 3.1 Pro Preview Google"
+        note: "Google Gemini 3.1 Pro Preview model"
     reasoning_levels:
       low:
         ui_label: "low"
@@ -856,7 +859,6 @@ providers:
       - xhigh
     disallowed_reasoning_states:
       - empty
-      - none
 
   gamma:
     launch_cmd: "amp"
@@ -887,6 +889,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.4-mini
           reasoning: low
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: low
     md:
       allowed:
         - provider: gamma
@@ -896,6 +901,9 @@ runtime_bands:
           reasoning: medium
         - provider: delta
           model: gpt-5.4
+          reasoning: medium
+        - provider: delta
+          model: gemini-3.1-pro
           reasoning: medium
     lg:
       allowed:
@@ -907,6 +915,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.4
           reasoning: high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
     xl:
       allowed:
         - provider: beta
@@ -915,6 +926,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.4
           reasoning: extra_high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
   code:
     sm:
       allowed:
@@ -924,6 +938,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.3-codex
           reasoning: low
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: low
     md:
       allowed:
         - provider: beta
@@ -931,6 +948,9 @@ runtime_bands:
           reasoning: medium
         - provider: delta
           model: gpt-5.3-codex
+          reasoning: medium
+        - provider: delta
+          model: gemini-3.1-pro
           reasoning: medium
     lg:
       allowed:
@@ -940,6 +960,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.3-codex
           reasoning: high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
     xl:
       allowed:
         - provider: beta
@@ -948,6 +971,9 @@ runtime_bands:
         - provider: delta
           model: gpt-5.3-codex
           reasoning: extra_high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
 
 # Written by orchestrator when context limit approaches (see "Orchestrator session limits").
 # Null or absent during normal operation.
@@ -1075,6 +1101,7 @@ Model-label mapping:
 * `GPT-5.4 mini OpenAI` → gpt-5.4-mini for `doc-sm`
 * `GPT-5.4 OpenAI` → gpt-5.4 for `doc-md`, `doc-lg`, or `doc-xl`
 * `GPT-5.3 Codex OpenAI` → gpt-5.3-codex for `code-sm`, `code-md`, `code-lg`, or `code-xl`
+* `Gemini 3.1 Pro Preview Google` → gemini-3.1-pro for `doc-*` and `code-*` lanes
 
 The observed `C-t` cycle order is:
 
@@ -1082,14 +1109,21 @@ The observed `C-t` cycle order is:
 empty -> none -> low -> medium -> high -> xhigh -> empty
 ```
 
-Map lane size to the target reasoning label:
+Map lane size to the target reasoning label for GPT models:
 
 * **sm** → `low`
 * **md** → `medium`
 * **lg** → `high`
 * **xl** → `xhigh` (store `extra_high` in metadata)
 
-Treat `empty` as "the `Build ...` line shows no reasoning suffix". The goal is to land on a real reasoning level, never `empty` and never `none`. Use whole-screen matching against the concrete `Build ...` runtime line, not bare reasoning words by themselves. Delta is currently mapped for all `doc-*` lanes and all `code-*` lanes.
+Map lane size to the target reasoning label for Gemini models:
+
+* **sm** → `low`
+* **md** → `medium`
+* **lg** → `high`
+* **xl** → `high`
+
+Treat `empty` as "the `Build ...` line shows no reasoning suffix". The goal is to land on a real reasoning level, never `empty` and never `none` (for GPT). Use whole-screen matching against the concrete `Build ...` runtime line, not bare reasoning words by themselves. Delta is currently mapped for all `doc-*` lanes and all `code-*` lanes.
 
 #### Amp
 
@@ -1211,7 +1245,7 @@ reasoning: high
 
 For `delta`, the UI label `xhigh` maps to metadata value `extra_high`.
 
-For `delta`, `empty` means the `Build ...` line shows no reasoning suffix at all. Never persist `empty` or `none` as the lane reasoning.
+For `delta`, `empty` means the `Build ...` line shows no reasoning suffix at all. Never persist `empty` as the lane reasoning. `none` is only allowed for Gemini.
 
 gamma should also include:
 
@@ -1507,9 +1541,9 @@ Route from the discovered context profile, not from rigid categories.
 
 Use these runtime bands throughout routing:
 
-* `Amp smart / gpt-5.4` = high-capability general runtime band
-* `Amp rush / gpt-5.4-mini` = lightweight general runtime band
-* `gpt-5.3-codex` = coding runtime band
+* `Amp smart / gpt-5.4`, `gemini-3.1-pro medium/high` = high-capability general runtime band
+* `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro low` = lightweight general runtime band
+* `gpt-5.3-codex`, `gemini-3.1-pro` = coding runtime band
 
 ## Phase split
 
@@ -1517,8 +1551,8 @@ Every task must be classified into exactly one phase before dispatch:
 
 | Phase | Purpose | Allowed runtimes |
 |---|---|---|
-| Decision phase | planning, decomposition, documentation, analysis, non-code reasoning | `Amp smart / gpt-5.4` or `Amp rush / gpt-5.4-mini`, depending on work type and complexity |
-| Coding phase | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex` |
+| Decision phase | planning, decomposition, documentation, analysis, non-code reasoning | `Amp smart / gpt-5.4` or `Amp rush / gpt-5.4-mini` or `gemini-3.1-pro`, depending on work type and complexity |
+| Coding phase | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex` or `gemini-3.1-pro` |
 
 Hard rules:
 
@@ -1533,14 +1567,14 @@ The lane name and runtime mapping must agree:
 
 | Lane class | Meaning | Allowed runtimes |
 |---|---|---|
-| `doc-sm` | lightweight decision work | `Amp rush / gpt-5.4-mini` |
-| `doc-md` | standard decision work | `Amp smart / gpt-5.4 medium` |
-| `doc-lg` | harder decision work | `Amp smart / gpt-5.4 high` |
-| `doc-xl` | hardest decision work | `gpt-5.4 extra_high` |
-| `code-sm` | lightweight coding work | `gpt-5.3-codex low` |
-| `code-md` | standard coding work | `gpt-5.3-codex medium` |
-| `code-lg` | harder coding work | `gpt-5.3-codex high` |
-| `code-xl` | hardest coding work | `gpt-5.3-codex extra_high` |
+| `doc-sm` | lightweight decision work | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro low` |
+| `doc-md` | standard decision work | `Amp smart / gpt-5.4 medium`, `gemini-3.1-pro medium` |
+| `doc-lg` | harder decision work | `Amp smart / gpt-5.4 high`, `gemini-3.1-pro high` |
+| `doc-xl` | hardest decision work | `gpt-5.4 extra_high`, `gemini-3.1-pro high` |
+| `code-sm` | lightweight coding work | `gpt-5.3-codex low`, `gemini-3.1-pro low` |
+| `code-md` | standard coding work | `gpt-5.3-codex medium`, `gemini-3.1-pro medium` |
+| `code-lg` | harder coding work | `gpt-5.3-codex high`, `gemini-3.1-pro high` |
+| `code-xl` | hardest coding work | `gpt-5.3-codex extra_high`, `gemini-3.1-pro high` |
 
 ## Decision-phase work tables
 
@@ -1550,8 +1584,8 @@ Criteria: the primary output is prose for humans to read, such as summaries, doc
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Ordinary explanatory text work | prose requires judgment about what matters, how to explain it, or how to frame it for the audience | explanatory documentation, rationale writeup, design note | `Amp smart / gpt-5.4` |
-| High-stakes text work | persuasive or strategic writing where judgment errors are expensive | strategic memo, recommendation, executive brief | `Amp smart / gpt-5.4` |
+| Ordinary explanatory text work | prose requires judgment about what matters, how to explain it, or how to frame it for the audience | explanatory documentation, rationale writeup, design note | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
+| High-stakes text work | persuasive or strategic writing where judgment errors are expensive | strategic memo, recommendation, executive brief | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
 
 ### Analytical work
 
@@ -1559,8 +1593,8 @@ Criteria: the task is about deciding what should happen, comparing options, or c
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Standard analytical work | bounded planning or comparison with moderate ambiguity | decomposition, tradeoff analysis, plan review | `Amp smart / gpt-5.4` |
-| Hard analytical work | planning mistakes are expensive and the task needs deeper reasoning | architecture decision, ADR, orchestrator topology, costly decomposition | `Amp smart / gpt-5.4` |
+| Standard analytical work | bounded planning or comparison with moderate ambiguity | decomposition, tradeoff analysis, plan review | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
+| Hard analytical work | planning mistakes are expensive and the task needs deeper reasoning | architecture decision, ADR, orchestrator topology, costly decomposition | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
 
 ### Mechanical work
 
@@ -1568,8 +1602,8 @@ Criteria: the task is tightly scoped, deterministic, and transformation-heavy. T
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Mechanical transform | deterministic, low-judgment transformation with explicit instructions | extraction, formatting, classification, reformatting | `Amp rush / gpt-5.4-mini` |
-| Large but bounded mechanical/text work | large corpus, but still specific and guardrailed | bulk summarization with strict schema, status notes, structured rewrite batch | `Amp rush / gpt-5.4-mini` |
+| Mechanical transform | deterministic, low-judgment transformation with explicit instructions | extraction, formatting, classification, reformatting | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro` |
+| Large but bounded mechanical/text work | large corpus, but still specific and guardrailed | bulk summarization with strict schema, status notes, structured rewrite batch | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro` |
 
 ## Coding-phase work table
 
@@ -1577,7 +1611,7 @@ Criteria: the task changes, explains, investigates, or delivers code-shaped work
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Coding work | code implementation or investigation inside an already-decided scope | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex` |
+| Coding work | code implementation or investigation inside an already-decided scope | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex`, `gemini-3.1-pro` |
 
 ## Reasoning levels
 
@@ -2088,9 +2122,9 @@ Use these defaults when the task has not yet been decomposed further:
 
 | Situation | Allowed runtimes | Notes |
 |---|---|---|
-| decision work with stronger reasoning needs | `Amp smart / gpt-5.4` | use `gpt-5.4 extra_high` for the hardest decisions; OpenAI fallback can be `beta` or `delta` |
-| lightweight decision work with strong guardrails | `Amp rush / gpt-5.4-mini` | keep prompts specific, bounded, and structured; OpenAI fallback can be `beta` or `delta` |
-| coding work | `gpt-5.3-codex` | planning must already be decided; provider can be `beta` or `delta` |
+| decision work with stronger reasoning needs | `Amp smart / gpt-5.4`, `gemini-3.1-pro` | use `gpt-5.4 extra_high` for the hardest decisions; OpenAI fallback can be `beta` or `delta` |
+| lightweight decision work with strong guardrails | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro` | keep prompts specific, bounded, and structured; OpenAI fallback can be `beta` or `delta` |
+| coding work | `gpt-5.3-codex`, `gemini-3.1-pro` | planning must already be decided; provider can be `beta` or `delta` |
 
 ---
 

@@ -22,7 +22,7 @@ EOF
 
 delta_validate_model() {
   case "$1" in
-    "GPT-5.4 mini OpenAI"|"GPT-5.4 OpenAI"|"GPT-5.3 Codex OpenAI")
+    "GPT-5.4 mini OpenAI"|"GPT-5.4 OpenAI"|"GPT-5.3 Codex OpenAI"|"Gemini 3.1 Pro Preview Google")
       return 0
       ;;
     *)
@@ -33,12 +33,34 @@ delta_validate_model() {
 }
 
 delta_validate_reasoning() {
-  case "$1" in
-    low|medium|high|xhigh)
-      return 0
+  local model_label="$1"
+  local reasoning_label="$2"
+
+  case "$model_label" in
+    *"Gemini"*)
+      case "$reasoning_label" in
+        none|low|medium|high)
+          return 0
+          ;;
+        *)
+          fail "unsupported delta reasoning label for Gemini: $reasoning_label"
+          return 1
+          ;;
+      esac
+      ;;
+    *"GPT"*)
+      case "$reasoning_label" in
+        low|medium|high|xhigh)
+          return 0
+          ;;
+        *)
+          fail "unsupported delta reasoning label for GPT: $reasoning_label"
+          return 1
+          ;;
+      esac
       ;;
     *)
-      fail "unsupported delta reasoning label: $1"
+      fail "unsupported model for reasoning validation: $model_label"
       return 1
       ;;
   esac
@@ -232,7 +254,7 @@ main() {
   fi
 
   delta_validate_model "$model_label"
-  delta_validate_reasoning "$reasoning_label"
+  delta_validate_reasoning "$model_label" "$reasoning_label"
   delta_launch_if_needed "$window_id"
   delta_select_model "$window_id" "$model_label"
   delta_cycle_reasoning "$window_id" "$reasoning_label"
