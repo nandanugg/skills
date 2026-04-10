@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/Users/nanda/skills/tmux_mode/scripts/tmux_runtime.sh
+# shellcheck source=/Users/nanda/skills/grand_orchestrator/scripts/tmux_runtime.sh
 source "$SCRIPT_DIR/tmux_runtime.sh"
 
 usage() {
@@ -118,7 +118,7 @@ delta_close_selector_if_open() {
 
 delta_wait_for_main_ui() {
   local window_id="$1"
-  local timeout="${2:-$TMUX_MODE_TIMEOUT_DEFAULT}"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT}"
   local interval="${3:-0.1}"
   local start
 
@@ -157,7 +157,7 @@ delta_launch_if_needed() {
   fi
 
   send_commands "$window_id" "opencode" 0.2
-  delta_wait_for_main_ui "$window_id" "$TMUX_MODE_TIMEOUT_DEFAULT" 0.2
+  delta_wait_for_main_ui "$window_id" "$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT" 0.2
 }
 
 delta_read_reasoning() {
@@ -194,7 +194,7 @@ delta_read_reasoning() {
 delta_select_model() {
   local window_id="$1"
   local model_label="$2"
-  local timeout="$TMUX_MODE_TIMEOUT_DEFAULT"
+  local timeout="$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT"
   local build_line
   local start
 
@@ -203,7 +203,7 @@ delta_select_model() {
   send_commands "$window_id" "$model_label" 0.1
   sleep 0.2
   delta_close_selector_if_open "$window_id" || true
-  delta_wait_for_main_ui "$window_id" "$TMUX_MODE_TIMEOUT_DEFAULT" 0.1
+  delta_wait_for_main_ui "$window_id" "$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT" 0.1
 
   start=$SECONDS
   while true; do

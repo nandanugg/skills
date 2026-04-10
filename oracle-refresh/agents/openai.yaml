@@ -1,0 +1,4 @@
+interface:
+  display_name: "Oracle Refresh"
+  short_description: "Refresh oracle-context in strict order"
+  default_prompt: "Use $oracle-refresh to pull the latest oracle-context changes and refresh its documentation in sequence."

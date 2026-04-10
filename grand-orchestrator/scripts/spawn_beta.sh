@@ -5,10 +5,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/Users/nanda/skills/tmux_mode/scripts/tmux_runtime.sh
+# shellcheck source=/Users/nanda/skills/grand_orchestrator/scripts/tmux_runtime.sh
 source "$SCRIPT_DIR/tmux_runtime.sh"
 
-TMUX_MODE_BETA_TIMEOUT_DEFAULT="${TMUX_MODE_BETA_TIMEOUT_DEFAULT:-5}"
+GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT="${GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT:-5}"
 
 usage() {
   cat <<'EOF'
@@ -110,7 +110,7 @@ beta_current_reasoning() {
 
 beta_wait_ready() {
   local window_id="$1"
-  local timeout="${2:-$TMUX_MODE_BETA_TIMEOUT_DEFAULT}"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT}"
   local interval="${3:-0.1}"
   local start
 
@@ -132,7 +132,7 @@ beta_wait_ready() {
 beta_wait_until_model_applied() {
   local window_id="$1"
   local model="$2"
-  local timeout="${3:-$TMUX_MODE_BETA_TIMEOUT_DEFAULT}"
+  local timeout="${3:-$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT}"
   local interval="${4:-0.1}"
   local current_model
   local menu_model
@@ -159,7 +159,7 @@ beta_wait_for_state() {
   local window_id="$1"
   local model="$2"
   local reasoning="$3"
-  local timeout="${4:-$TMUX_MODE_BETA_TIMEOUT_DEFAULT}"
+  local timeout="${4:-$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT}"
   local interval="${5:-0.1}"
   local current_model
   local current_reasoning
@@ -209,12 +209,12 @@ beta_launch_if_needed() {
   fi
 
   send_commands "$window_id" "codex --sandbox danger-full-access" 0.2
-  beta_wait_ready "$window_id" "$TMUX_MODE_BETA_TIMEOUT_DEFAULT" 0.2
+  beta_wait_ready "$window_id" "$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT" 0.2
 }
 
 beta_open_model_picker() {
   local window_id="$1"
-  local timeout="${2:-$TMUX_MODE_BETA_TIMEOUT_DEFAULT}"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT}"
   local start
 
   start=$SECONDS
@@ -248,7 +248,7 @@ beta_select_model() {
   beta_open_model_picker "$window_id"
   send_key "$window_id" "$model_key"
   sleep 0.2
-  beta_wait_until_model_applied "$window_id" "$model" "$TMUX_MODE_BETA_TIMEOUT_DEFAULT" 0.1
+  beta_wait_until_model_applied "$window_id" "$model" "$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT" 0.1
 }
 
 beta_select_reasoning() {
@@ -310,7 +310,7 @@ main() {
     beta_select_reasoning "$window_id" "$reasoning"
   fi
 
-  beta_wait_for_state "$window_id" "$model" "$reasoning" "$TMUX_MODE_BETA_TIMEOUT_DEFAULT" 0.1
+  beta_wait_for_state "$window_id" "$model" "$reasoning" "$GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT" 0.1
 
   printf 'OK beta window=%s state="%s"\n' "$window_id" "$(beta_state_line "$window_id")"
 }

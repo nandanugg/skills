@@ -2,13 +2,13 @@
 
 # Shared tmux adapter primitives for the workflow documented in ../SKILL.md.
 
-TMUX_MODE_ENTER_DELAY_DEFAULT="${TMUX_MODE_ENTER_DELAY_DEFAULT:-0.2}"
-TMUX_MODE_POLL_INTERVAL="${TMUX_MODE_POLL_INTERVAL:-0.1}"
-TMUX_MODE_TIMEOUT_DEFAULT="${TMUX_MODE_TIMEOUT_DEFAULT:-3}"
-TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT="${TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT:-0.1}"
+GRAND_ORCHESTRATOR_ENTER_DELAY_DEFAULT="${GRAND_ORCHESTRATOR_ENTER_DELAY_DEFAULT:-0.2}"
+GRAND_ORCHESTRATOR_POLL_INTERVAL="${GRAND_ORCHESTRATOR_POLL_INTERVAL:-0.1}"
+GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT="${GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT:-3}"
+GRAND_ORCHESTRATOR_WINDOW_RENAME_DELAY_DEFAULT="${GRAND_ORCHESTRATOR_WINDOW_RENAME_DELAY_DEFAULT:-0.1}"
 
 fail() {
-  printf 'tmux_mode error: %s\n' "$*" >&2
+  printf 'grand_orchestrator error: %s\n' "$*" >&2
   return 1
 }
 
@@ -18,7 +18,7 @@ fail() {
 
 create_window() {
   local window_name="${1:?window_name is required}"
-  local rename_delay="${2:-$TMUX_MODE_WINDOW_RENAME_DELAY_DEFAULT}"
+  local rename_delay="${2:-$GRAND_ORCHESTRATOR_WINDOW_RENAME_DELAY_DEFAULT}"
 
   local window_id
   window_id="$(tmux new-window -d -P -F '#{window_id}')" || {
@@ -71,7 +71,7 @@ send_key() {
 send_commands() {
   local window_id="${1:?window_id is required}"
   local text="${2:?text is required}"
-  local delay="${3:-$TMUX_MODE_ENTER_DELAY_DEFAULT}"
+  local delay="${3:-$GRAND_ORCHESTRATOR_ENTER_DELAY_DEFAULT}"
 
   tmux send-keys -t "$window_id" "$text"
   sleep "$delay"
@@ -95,8 +95,8 @@ capture_footer() {
 wait_for_screen() {
   local window_id="${1:?window_id is required}"
   local regex="${2:?regex is required}"
-  local timeout="${3:-$TMUX_MODE_TIMEOUT_DEFAULT}"
-  local interval="${4:-$TMUX_MODE_POLL_INTERVAL}"
+  local timeout="${3:-$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT}"
+  local interval="${4:-$GRAND_ORCHESTRATOR_POLL_INTERVAL}"
   local screen
   local start
 
@@ -123,8 +123,8 @@ wait_for_footer() {
 
 wait_for_screen_markers() {
   local window_id="${1:?window_id is required}"
-  local timeout="${2:-$TMUX_MODE_TIMEOUT_DEFAULT}"
-  local interval="${3:-$TMUX_MODE_POLL_INTERVAL}"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT}"
+  local interval="${3:-$GRAND_ORCHESTRATOR_POLL_INTERVAL}"
   local screen
   local marker
   local all_found

@@ -1,11 +1,11 @@
 ---
-name: tmux-mode-orchestrator
-description: Activates when the user says "tmux mode". Runs a discovery-first, window-based tmux orchestrator inside the current tmux session. Each subagent is a tmux window (tab) visible in Oh My Tmux. Uses context lanes instead of rigid categories, file-based outputs, and keystroke-based inputs across Claude, Codex, Amp, and OpenCode.
+name: grand-orchestrator
+description: Activates when the user says "grand orchestrator". Runs a discovery-first, window-based tmux orchestrator inside the current tmux session. Each subagent is a tmux window (tab) visible in Oh My Tmux. Uses context lanes instead of rigid categories, file-based outputs, and keystroke-based inputs across Claude, Codex, Amp, and OpenCode.
 ---
 
-# Tmux Mode Orchestrator (Discovery-First, Window-Based)
+# Grand Orchestrator (Discovery-First, Window-Based)
 
-Trigger this skill when the user says exactly or clearly intends: **"tmux mode"**.
+Trigger this skill when the user says exactly or clearly intends: **"grand orchestrator"**.
 
 This skill turns tmux into a persistent multi-agent runtime. It is optimized for **Oh My Tmux tabs** and for **warm context reuse**.
 
@@ -29,7 +29,7 @@ This skill uses:
 - **`.tmux/` = durable reconciler**
 - **context lanes = persistent warm specialists**
 
-All checked-in tmux helper scripts live at the fixed path prefix `~/skills/tmux_mode/scripts/`. Do not derive this path from the current repo location or workdir.
+All checked-in tmux helper scripts live at the fixed path prefix `~/skills/grand-orchestrator/scripts/`. Do not derive this path from the current repo location or workdir.
 
 ## Core principles
 
@@ -51,18 +51,18 @@ All checked-in tmux helper scripts live at the fixed path prefix `~/skills/tmux_
 **NEVER** compose raw `tmux send-keys`, `tmux new-window`, `tmux kill-window`, `tmux rename-window`, or `tmux capture-pane` commands directly. Always use `tmux_runtime.sh` helpers:
 
 ```bash
-WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"   # not tmux new-window
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "prompt text"                # not tmux send-keys
-~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"                               # not tmux capture-pane
-~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"                                # not tmux kill-window
+WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"   # not tmux new-window
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "prompt text"                # not tmux send-keys
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"                               # not tmux capture-pane
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"                                # not tmux kill-window
 ```
 
 For provider launch, always call the spawn scripts:
 
 ```bash
-~/skills/tmux_mode/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
-~/skills/tmux_mode/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
-~/skills/tmux_mode/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
+~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
+~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
+~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ```
 
 If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/models`, `C-t`, `codex --sandbox`, `opencode`, `amp`, or any raw tmux or provider-specific commands, **stop — you are doing it wrong**. Use the helpers.
@@ -71,7 +71,7 @@ If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/mod
 
 **NEVER** use `sleep` loops, `sleep`-then-capture-pane polling, or any timer-based waiting to check if a lane has finished its work. The architecture is **callback-driven**:
 
-- When a lane finishes or needs to report status back to the orchestrator, it must signal via `~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "..."`.
+- When a lane finishes or needs to report status back to the orchestrator, it must signal via `~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "..."`.
 - The orchestrator processes signals as they arrive — it does not poll.
 - The only acceptable use of `sleep` is inside the checked-in helper scripts such as `tmux_runtime.sh send-commands`.
 
@@ -83,7 +83,7 @@ If you find yourself writing `while true; do sleep N; capture-pane; grep ...; do
 
 Activate this skill when the user says:
 
-- `tmux mode`
+- `grand orchestrator`
 
 Also activate when the user clearly asks to:
 - use tmux as a multi-agent orchestrator
@@ -97,7 +97,7 @@ Also activate when the user clearly asks to:
 
 Activate teardown when the user says:
 
-- `turn off tmux mode`
+- `turn off grand orchestrator`
 
 ## Teardown procedure
 
@@ -106,18 +106,18 @@ Activate teardown when the user says:
 3. Kill each managed window:
 
    ```bash
-   ~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_NAME"
+   ~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_NAME"
    ```
 
 4. Confirm no managed windows remain:
 
    ```bash
-   ~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
+   ~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows
    ```
 
-5. Inform the user that all tmux mode windows have been closed
+5. Inform the user that all grand orchestrator windows have been closed
 
-**Only kill windows that were created by tmux mode** (i.e. those whose names exactly match tracked `tmux_window_name` values in `.tmux/`). Do not kill unrelated windows in the session.
+**Only kill windows that were created by grand orchestrator** (i.e. those whose names exactly match tracked `tmux_window_name` values in `.tmux/`). Do not kill unrelated windows in the session.
 
 Optionally ask the user whether to also delete the `.tmux/` directory. Do not delete it automatically — it may contain useful context and task history.
 
@@ -613,7 +613,7 @@ Write a lane-local request file in `requests/` with:
 Then signal the orchestrator:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml. Check it."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml. Check it."
 ```
 
 The agent should then continue with whatever it can do independently while waiting. It does not block unless the answer is strictly required.
@@ -629,7 +629,7 @@ If no other lane owns the topic:
 5. Signal the orchestrator:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml with self_resolved=true. Check it."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Board request posted at .tmux/pay-code-md-api/requests/question-001.yaml with self_resolved=true. Check it."
 ```
 
 ## Orchestrator flow: routing a question
@@ -649,7 +649,7 @@ When the orchestrator receives a board request signal:
 
 ```bash
 TARGET_WINDOW_ID="@12"
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$TARGET_WINDOW_ID" "Board question q-001 from pay|code|md|api: 'Does the settlement cutoff apply in gateway local time or UTC?' Read .tmux/shared_board.yaml entry q-001. Write your answer to .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Then signal the orchestrator."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$TARGET_WINDOW_ID" "Board question q-001 from pay|code|md|api: 'Does the settlement cutoff apply in gateway local time or UTC?' Read .tmux/shared_board.yaml entry q-001. Write your answer to .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Then signal the orchestrator."
 ```
 
    - update the board entry's `status` to `routed`
@@ -668,7 +668,7 @@ When the target agent receives a board question via keystrokes:
 4. Signal the orchestrator:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board answer posted at .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Check it."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Board answer posted at .tmux/pay-doc-lg-settlement/requests/answer-q-001.yaml. Check it."
 ```
 
 ## Orchestrator flow: delivering the answer
@@ -682,7 +682,7 @@ When the orchestrator receives an answered signal:
 
 ```bash
 QUESTIONER_WINDOW_ID="@13"
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$QUESTIONER_WINDOW_ID" "Board answer for q-001: '<answer text>'. Acknowledge by writing .tmux/pay-code-md-api/requests/ack-q-001.yaml and then signal the orchestrator."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$QUESTIONER_WINDOW_ID" "Board answer for q-001: '<answer text>'. Acknowledge by writing .tmux/pay-code-md-api/requests/ack-q-001.yaml and then signal the orchestrator."
 ```
 
 ## Questioner flow: acknowledging
@@ -694,7 +694,7 @@ When the questioner receives the answer:
 3. Signal the orchestrator:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Board ack posted at .tmux/pay-code-md-api/requests/ack-q-001.yaml. Check it."
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Board ack posted at .tmux/pay-code-md-api/requests/ack-q-001.yaml. Check it."
 ```
 
 ## Orchestrator flow: acknowledging
@@ -727,13 +727,13 @@ Each `.tmux/<lane_key>/` directory implies the lane should exist.
 Check live windows using:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows
 ```
 
 For each lane directory:
 
 1. Compute expected window name from `meta.yaml` field `tmux_window_name`
-2. Check `~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows`
+2. Check `~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows`
 3. If present → resolve the current live `tmux_window_id` from tmux and refresh metadata before reusing it
 4. If missing → create the window
 5. If broken or stale → reset it
@@ -743,19 +743,19 @@ For each lane directory:
 Always use `create_window` from `tmux_runtime.sh`. It handles `-d` (no focus steal), captures the window id, and renames atomically — avoiding the common bug where a bare `tmux rename-window` renames the orchestrator window instead:
 
 ```bash
-WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
+WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 ## Kill broken window
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
 ```
 
 ## Rename drifted window
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "$OLD_NAME" "$NEW_NAME"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh rename-window "$OLD_NAME" "$NEW_NAME"
 ```
 
 ## Window name is permanent
@@ -1032,7 +1032,7 @@ Provisioning has two phases:
 ### Step 1: create window
 
 ```bash
-WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
+WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 Immediately persist both values:
@@ -1051,7 +1051,7 @@ All live tmux operations must target `"$WINDOW_ID"`, not `"$WINDOW_NAME"`.
 Claude is reserved for future use. Do not select it during normal orchestration unless `runtime_bands` explicitly maps a lane class to Claude.
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "claude --dangerously-skip-permissions"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "claude --dangerously-skip-permissions"
 ```
 
 1. Wait for readiness
@@ -1068,7 +1068,7 @@ Claude is reserved for future use. Do not select it during normal orchestration 
 Use the provider adapter instead of replaying Codex picker keystrokes inline:
 
 ```bash
-~/skills/tmux_mode/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
+~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
 ```
 
 The helper owns launch of `codex --sandbox danger-full-access`, readiness detection, model selection, reasoning selection, and runtime verification.
@@ -1091,7 +1091,7 @@ Reasoning by lane size:
 Use the provider adapter instead of replaying OpenCode picker keystrokes inline:
 
 ```bash
-~/skills/tmux_mode/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
+~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
 ```
 
 The helper owns launch of `opencode`, main UI readiness detection, `/models`, exact picker-label selection, `Select variant` exit handling, `C-t` cycling, and `Build ...` verification.
@@ -1130,7 +1130,7 @@ Treat `empty` as "the `Build ...` line shows no reasoning suffix". The goal is t
 Use the provider adapter instead of replaying Amp mode-switch keystrokes inline:
 
 ```bash
-~/skills/tmux_mode/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
+~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ```
 
 The helper owns launch of `amp`, active-mode detection, switch-only-when-needed behavior, and mode verification.
@@ -1322,7 +1322,7 @@ Input goes in by:
 1. writing a task file into `inbox/`
 2. injecting keystrokes telling the agent to read it and respond by file
 
-The task file must include the orchestrator window address so the worker can signal completion back. The orchestrator window name is always `orchestrator` (the main Claude Code window running tmux mode), and the worker must use `tmux_runtime.sh send-commands` for that callback instead of raw `tmux send-keys`.
+The task file must include the orchestrator window address so the worker can signal completion back. The orchestrator window name is always `orchestrator` (the main Claude Code window running grand orchestrator), and the worker must use `tmux_runtime.sh send-commands` for that callback instead of raw `tmux send-keys`.
 
 `task_id` is orchestrator-minted and immutable. Lanes never mint global task ids.
 
@@ -1349,18 +1349,18 @@ Update status.yaml when done.
 If blocked, write needs_input state and your blocking question.
 If you discover reusable knowledge, write a context delta to .tmux/pay-doc-lg-settlement/context/last_delta.yaml.
 When done, signal the orchestrator by running:
-  ~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "orchestrator" "Task task-004 is complete. Result at .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml"
+  ~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Task task-004 is complete. Result at .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml"
 ```
 
 **All CLIs:** always use `tmux_runtime.sh send-commands` to inject prompts. It handles the text, sleep, and Enter automatically:
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "your prompt here"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "your prompt here"
 ```
 
 If the CLI in that window is already launched, do not relaunch the binary for the next prompt. Just call `tmux_runtime.sh send-commands` with the next prompt.
 
-Before injecting a prompt, capture the pane (`~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"`) and make sure there is no update notice, warning, modal, or other obstruction sitting on screen. If there is, dismiss it first and only then send the prompt. Use `tmux_window_id` for all live tmux commands.
+Before injecting a prompt, capture the pane (`~/skills/grand-orchestrator/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"`) and make sure there is no update notice, warning, modal, or other obstruction sitting on screen. If there is, dismiss it first and only then send the prompt. Use `tmux_window_id` for all live tmux commands.
 
 Keep keystrokes thin. Put real detail in files.
 
@@ -1698,7 +1698,7 @@ The orchestrator runs inside a Claude Code session window. That session has a co
 
 **This is expected. The journal is the recovery mechanism.**
 
-When a fresh orchestrator instance is started (user restarts tmux mode, or opens a new Claude Code session in the orchestrator window), it must be able to reconstruct full situational awareness by reading:
+When a fresh orchestrator instance is started (user restarts grand orchestrator, or opens a new Claude Code session in the orchestrator window), it must be able to reconstruct full situational awareness by reading:
 
 1. `.tmux/journal.md` — what has happened and what decisions were made
 2. `.tmux/lanes.yaml` — current lane topology
@@ -1711,7 +1711,7 @@ If the orchestrator detects it is running low on context (responses becoming slo
 
 1. Flush a summary entry to `.tmux/journal.md` covering current state
 2. Write a `resume_hint` field into `.tmux/runtime.yaml` with a one-line summary of what to do next
-3. Inform the user: "Orchestrator context is filling up. Journal and state are flushed. You can restart tmux mode to resume."
+3. Inform the user: "Orchestrator context is filling up. Journal and state are flushed. You can restart grand orchestrator to resume."
 
 On restart, the new orchestrator instance reads the journal and runtime.yaml resume hint before doing anything else.
 
@@ -1800,7 +1800,7 @@ When provisioning a tmux window:
 1. compute `dir_abbrev` = short abbreviation of `basename(workdir)` (e.g. `payments` → `pay`, `frontend` → `fe`, `infrastructure` → `inf`)
 2. compute `lane_key = <dir_abbrev>-<doc_or_code>-<size>-<lane>` (internal identity, stored in metadata)
 3. compute `window_name = <dir_abbrev>|<doc_or_code>|<size>|<lane>` (e.g. `pay|doc|lg|settlement`)
-4. create the window with `WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "$window_name")"` and persist both `tmux_window_name` and `tmux_window_id`
+4. create the window with `WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "$window_name")"` and persist both `tmux_window_name` and `tmux_window_id`
 
 If the window already exists but has the wrong name, rename it to match the rule.
 
@@ -1815,7 +1815,7 @@ Human tmux navigation (Oh My Tmux tabs) should always reflect:
 
 # Suggested helper scripts
 
-Use the reusable helper layer shipped in this repo's `scripts/` directory. When installed for regular use, that path is typically `~/skills/tmux_mode/scripts/`.
+Use the reusable helper layer shipped in this repo's `scripts/` directory. When installed for regular use, that path is typically `~/skills/grand-orchestrator/scripts/`.
 
 ```text
 scripts/
@@ -1846,13 +1846,13 @@ Do not keep re-implementing raw `tmux send-keys` sequences inline. Put the repea
 Use the installed helper scripts with a stable API such as:
 
 ```bash
-WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "commands here"
-~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
-~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
-~/skills/tmux_mode/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
-~/skills/tmux_mode/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
-~/skills/tmux_mode/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "xhigh"
+WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "commands here"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
+~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
+~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "xhigh"
 ```
 
 The abstraction goal is:
@@ -1862,7 +1862,7 @@ The abstraction goal is:
 * the installed helpers default to a 3-second timeout and should fail fast when the required runtime state does not appear; Beta/Codex uses a 5-second default because cold start is slower in practice
 * failures return non-zero and print a specific error message that says what check failed
 
-Subcommands available via `~/skills/tmux_mode/scripts/tmux_runtime.sh <subcommand>`:
+Subcommands available via `~/skills/grand-orchestrator/scripts/tmux_runtime.sh <subcommand>`:
 
 * `create-window WINDOW_NAME` — create a detached window, rename it, and print the live `window_id`
 * `kill-window WINDOW_ID` — kill a window by id
@@ -1884,13 +1884,13 @@ These adapters should be the only place that knows provider-specific quirks. The
 
 ## Responsibilities
 
-### `~/skills/tmux_mode/scripts/tmux_runtime.sh`
+### `~/skills/grand-orchestrator/scripts/tmux_runtime.sh`
 
 * centralize low-level `tmux send-keys`, sleeps, Enter, pane capture, and retry helpers
 * expose stable shell helpers such as `send_commands`, `send_key`, `capture_screen`, and `wait_for_screen`
 * emit consistent failure messages and non-zero exit codes
 
-### `~/skills/tmux_mode/scripts/spawn_delta.sh`
+### `~/skills/grand-orchestrator/scripts/spawn_delta.sh`
 
 * launch `opencode` in the designated tmux window
 * wait for the main screen state, not arbitrary pane text
@@ -1899,14 +1899,14 @@ These adapters should be the only place that knows provider-specific quirks. The
 * cycle `C-t` one step at a time until the requested reasoning label is visible
 * fail clearly if the required screen state never appears, the selected model does not stick, or the requested reasoning cannot be reached
 
-### `~/skills/tmux_mode/scripts/spawn_beta.sh`
+### `~/skills/grand-orchestrator/scripts/spawn_beta.sh`
 
 * launch `codex --sandbox danger-full-access` in the designated tmux window
 * select the requested model and reasoning using Codex-specific controls
 * verify the selected runtime before returning success
 * fail clearly if the model picker or reasoning selection does not complete
 
-### `~/skills/tmux_mode/scripts/spawn_gamma.sh`
+### `~/skills/grand-orchestrator/scripts/spawn_gamma.sh`
 
 * launch `amp` in the designated tmux window
 * verify the active mode before switching
@@ -1985,7 +1985,7 @@ These adapters should be the only place that knows provider-specific quirks. The
 
 # Orchestrator onboarding
 
-When "tmux mode" activates, the orchestrator must check whether `.tmux/` exists before doing anything else. This determines whether this is a fresh start or a resume.
+When "grand orchestrator" activates, the orchestrator must check whether `.tmux/` exists before doing anything else. This determines whether this is a fresh start or a resume.
 
 **Orchestrator journaling directive:** You maintain `.tmux/journal.md`. Append a timestamped markdown entry with a category tag on every significant event: `[dispatch]` task sent, `[complete]` result received, `[board]` cross-lane question routed/answered/acked, `[escalation]` runtime upgrade, `[decision]` non-obvious routing or topology choice, `[repair]` window recreated or lane reset, `[resume]` orchestrator restarted, `[flush]` context limit approaching. Write immediately after each event — not in batches. This journal is the primary recovery mechanism if your session ends.
 
@@ -2019,7 +2019,7 @@ After reading, build a situational summary:
 Append a `[resume]` entry to `.tmux/journal.md` with this summary.
 
 Then **present the summary to the user** and ask:
-> "Resuming tmux mode. Here's the current state: [summary]. Do you have any questions or want to adjust anything before I continue?"
+> "Resuming grand orchestrator. Here's the current state: [summary]. Do you have any questions or want to adjust anything before I continue?"
 
 Wait for the user's response before proceeding. The user may want to:
 - Ask about a specific lane's work
@@ -2045,7 +2045,7 @@ For each lane with `task_id != null`:
 # Expected orchestrator loop
 
 ```text
-1.  user says "tmux mode"
+1.  user says "grand orchestrator"
 2.  rename current window to "orchestrator" (tmux rename-window "orchestrator")
 3.  run orchestrator onboarding (see "Orchestrator onboarding" section):
     - if .tmux/ does not exist → fresh start: create directory, journal, board, runtime
@@ -2091,7 +2091,7 @@ If context limit is approaching:
 
 This skill is working correctly when:
 
-* saying `tmux mode` activates orchestration behavior
+* saying `grand orchestrator` activates orchestration behavior
 * survey + discovery runs before any window is spawned
 * windows are provisioned and named consistently, visible as Oh My Tmux tabs
 * `.tmux/<lane_key>/` fully reflects window reality
@@ -2130,54 +2130,54 @@ Use these defaults when the task has not yet been decomposed further:
 
 # Minimal tmux command cheatsheet
 
-All tmux operations go through `~/skills/tmux_mode/scripts/tmux_runtime.sh`. Provider launch uses `spawn_beta.sh`, `spawn_delta.sh`, and `spawn_gamma.sh`. **Never use raw `tmux` commands directly.**
+All tmux operations go through `~/skills/grand-orchestrator/scripts/tmux_runtime.sh`. Provider launch uses `spawn_beta.sh`, `spawn_delta.sh`, and `spawn_gamma.sh`. **Never use raw `tmux` commands directly.**
 
 ## Create window
 
 ```bash
-WINDOW_ID="$(~/skills/tmux_mode/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
+WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
 ```
 
 ## Send command
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "command"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "command"
 ```
 
 ## Capture output
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
 ```
 
 ## List windows
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh list-windows
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows
 ```
 
 ## Kill window
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
 ```
 
 ## Rename window
 
 ```bash
-~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "old" "new"
+~/skills/grand-orchestrator/scripts/tmux_runtime.sh rename-window "old" "new"
 ```
 
 ---
 
 # Final directive
 
-When the user says **"tmux mode"**, switch into discovery-first orchestrator behavior:
+When the user says **"grand orchestrator"**, switch into discovery-first orchestrator behavior:
 
 * immediately rename the current tmux window to `orchestrator`:
 
   ```bash
-  ~/skills/tmux_mode/scripts/tmux_runtime.sh rename-window "$(tmux display-message -p '#{window_id}')" "orchestrator"
+  ~/skills/grand-orchestrator/scripts/tmux_runtime.sh rename-window "$(tmux display-message -p '#{window_id}')" "orchestrator"
   ```
 
 * check if `.tmux/` exists — if yes, run the resume protocol: read journal + state files, summarize to the user, ask if they have questions before continuing

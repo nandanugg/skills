@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/Users/nanda/skills/tmux_mode/scripts/tmux_runtime.sh
+# shellcheck source=/Users/nanda/skills/grand_orchestrator/scripts/tmux_runtime.sh
 source "$SCRIPT_DIR/tmux_runtime.sh"
 
 usage() {
@@ -56,7 +56,7 @@ gamma_current_mode() {
 
 gamma_wait_ready() {
   local window_id="$1"
-  local timeout="${2:-$TMUX_MODE_TIMEOUT_DEFAULT}"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT}"
   local interval="${3:-0.1}"
   local start
 
@@ -78,7 +78,7 @@ gamma_wait_ready() {
 gamma_wait_for_mode() {
   local window_id="$1"
   local mode="$2"
-  local timeout="${3:-$TMUX_MODE_TIMEOUT_DEFAULT}"
+  local timeout="${3:-$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT}"
   local interval="${4:-0.1}"
   local current_mode
   local start
@@ -119,7 +119,7 @@ gamma_launch_if_needed() {
   fi
 
   send_commands "$window_id" "amp" 0.2
-  gamma_wait_ready "$window_id" "$TMUX_MODE_TIMEOUT_DEFAULT" 0.2
+  gamma_wait_ready "$window_id" "$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT" 0.2
 }
 
 main() {
@@ -143,7 +143,7 @@ main() {
     sleep 0.2
   fi
 
-  gamma_wait_for_mode "$window_id" "$mode" "$TMUX_MODE_TIMEOUT_DEFAULT" 0.1
+  gamma_wait_for_mode "$window_id" "$mode" "$GRAND_ORCHESTRATOR_TIMEOUT_DEFAULT" 0.1
   printf 'OK gamma window=%s state="%s"\n' "$window_id" "$(gamma_state_line "$window_id")"
 }
 

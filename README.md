@@ -4,7 +4,7 @@ This repo is rooted at the parent of the individual skill folders.
 
 Current skill(s):
 
-- `tmux_mode/`
+- `grand_orchestrator/`
 
 ## Clone
 
