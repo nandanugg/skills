@@ -1,6 +1,6 @@
 ---
 name: grand-orchestrator
-description: Activates when the user says "grand orchestrator". Runs a discovery-first, window-based tmux orchestrator inside the current tmux session. Each subagent is a tmux window (tab) visible in Oh My Tmux. Uses context lanes instead of rigid categories, file-based outputs, and keystroke-based inputs across Claude, Codex, Amp, and OpenCode.
+description: Activates when the user says "grand orchestrator". Runs a discovery-first, window-based tmux orchestrator inside the current tmux session. Each subagent is a tmux window (tab) visible in Oh My Tmux. Uses context lanes instead of rigid categories, file-based outputs, and keystroke-based inputs across Claude (alpha), Codex (beta), Amp (gamma), and OpenCode (delta).
 ---
 
 # Grand Orchestrator (Discovery-First, Window-Based)
@@ -48,7 +48,7 @@ All checked-in tmux helper scripts live at the fixed path prefix `~/skills/grand
 
 ### Rule 1 — Use `tmux_runtime.sh` helpers and spawn scripts, never raw tmux commands
 
-**NEVER** compose raw `tmux send-keys`, `tmux new-window`, `tmux kill-window`, `tmux rename-window`, or `tmux capture-pane` commands directly. Always use `tmux_runtime.sh` helpers:
+**NEVER** compose raw `tmux send-keys`, `tmux new-window`, `tmux kill-window`, `tmux rename-window`, or `tmux capture-pane` commands directly for normal runtime work. Always use `tmux_runtime.sh` helpers:
 
 ```bash
 WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"   # not tmux new-window
@@ -60,12 +60,13 @@ WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "
 For provider launch, always call the spawn scripts:
 
 ```bash
+~/skills/grand-orchestrator/scripts/spawn_alpha.sh "$WINDOW_ID" "sonnet"
 ~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
 ~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
 ~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ```
 
-If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/models`, `C-t`, `codex --sandbox`, `opencode`, `amp`, or any raw tmux or provider-specific commands, **stop — you are doing it wrong**. Use the helpers.
+If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/models`, `C-t`, `codex --sandbox`, `claude --dangerously-skip-permissions`, `opencode`, `amp`, or other raw tmux/provider control sequences, **stop — you are doing it wrong**. Use the helpers. The only bootstrap exception currently documented in this file is reading the current window id via `tmux display-message -p '#{window_id}'` so you can target `tmux_runtime.sh rename-window` for the orchestrator window.
 
 ### Rule 2 — Wait for callbacks, never sleep-poll for results
 
@@ -73,7 +74,7 @@ If you find yourself typing `tmux send-keys`, `tmux new-window`, `/model`, `/mod
 
 - When a lane finishes or needs to report status back to the orchestrator, it must signal via `~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "..."`.
 - The orchestrator processes signals as they arrive — it does not poll.
-- The only acceptable use of `sleep` is inside the checked-in helper scripts such as `tmux_runtime.sh send-commands`.
+- The only acceptable use of `sleep` is inside the checked-in runtime helpers under `~/skills/grand-orchestrator/scripts/`, such as `tmux_runtime.sh` and the `spawn_*.sh` adapters.
 
 If you find yourself writing `while true; do sleep N; capture-pane; grep ...; done` or any variation, **stop — you are doing it wrong**. Wait for the lane to signal you.
 
@@ -353,6 +354,7 @@ phase: doc
 size: lg
 allowed_runtimes:
   - gamma:smart
+  - alpha:sonnet
   - beta:gpt-5.4:high
   - delta:gpt-5.4:high
 suggested_lane: settlement
@@ -740,7 +742,7 @@ For each lane directory:
 
 ## Create window
 
-Always use `create_window` from `tmux_runtime.sh`. It handles `-d` (no focus steal), captures the window id, and renames atomically — avoiding the common bug where a bare `tmux rename-window` renames the orchestrator window instead:
+Always use `create_window` from `tmux_runtime.sh`. It creates the window detached with `tmux new-window -d -P -F '#{window_id}'`, waits briefly so Oh My Tmux does not stomp the name, then renames by `window_id` — avoiding the common bug where a bare `tmux rename-window` renames the orchestrator window instead:
 
 ```bash
 WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "pay|doc|lg|settlement")"
@@ -790,8 +792,13 @@ reuse:
 providers:
   beta:
     launch_cmd: "codex --sandbox danger-full-access"
-    selector_kind: "interactive_menu"
+    timeout_seconds: 5
+    selector_kind: "interactive_model_picker_then_reasoning_menu"
     open_selector: "/model"
+    model_picker_title: "Select Model and Effort"
+    reasoning_menu_title_prefix: "Select Reasoning Level for "
+    readiness_detection: "state_line_from_full_screen_capture"
+    readiness_line_regex: "gpt-[^[:space:]]+[[:space:]]+(low|medium|high|extra[[:space:]]high)[[:space:]]+·[[:space:]]+[0-9]+%[[:space:]]+left[[:space:]]+·[[:space:]]+"
     models:
       gpt-5.4:
         key: "1"
@@ -803,7 +810,8 @@ providers:
         key: "3"
         note: "coding-specialist Codex model"
     reasoning_levels:
-      # after model selection, send a number key (no Enter needed)
+      # the helper may send Enter to move from the model picker into the
+      # reasoning menu, or to accept the currently highlighted reasoning.
       low:
         key: "1"
       medium:
@@ -816,6 +824,7 @@ providers:
 
   delta:
     launch_cmd: "opencode"
+    timeout_seconds: 3
     selector_kind: "exact_text_entry_then_variant_screen_cycle"
     open_selector: "/models"
     variant_screen_title: "Select variant"
@@ -846,8 +855,8 @@ providers:
     readiness_markers:
       - "Build"
       - "ctrl+p commands"
-    reasoning_detection_source: "whole_screen_build_regex"
-    reasoning_screen_regex: "Build\\s+.+?(?:·\\s*(none|low|medium|high|xhigh))?$"
+    readiness_requires_no_variant_screen: true
+    reasoning_detection_source: "Build line parsed from full-screen capture"
     empty_reasoning_when_no_build_suffix: true
     reasoning_toggle_key: "C-t"
     reasoning_cycle_order:
@@ -862,7 +871,9 @@ providers:
 
   gamma:
     launch_cmd: "amp"
+    timeout_seconds: 3
     mode_switch_prefix: "/"
+    readiness_detection: "state line contains ──smart── or ──rush──"
     modes:
       smart:
         command: "smart"
@@ -871,6 +882,29 @@ providers:
         command: "rush"
         note: "lightweight Amp mode; equivalent to gpt-5.4-mini"
     max_active_windows: 2
+    max_active_windows_note: "orchestrator policy only; spawn_gamma.sh does not enforce this cap"
+
+  alpha:
+    launch_cmd: "claude --dangerously-skip-permissions --model=<model>"
+    timeout_seconds: 10
+    selector_kind: "cli_flag"
+    models:
+      haiku:
+        flag_value: "haiku"
+        screen_pattern: "claude-haiku"
+        note: "lightweight Claude model for bounded, deterministic, low-cost-mistake work"
+      sonnet:
+        flag_value: "sonnet"
+        screen_pattern: "claude-sonnet"
+        note: "balanced Claude model for standard to harder analytical and coding work"
+      opus:
+        flag_value: "opus"
+        screen_pattern: "claude-opus"
+        note: "maximum-capability Claude model for hardest planning, architecture, and complex work"
+    readiness_detection: "full-screen substring match on the selected model pattern"
+    wrong_model_exit_command: "/exit"
+    wrong_model_force_interrupt_after_seconds: 5
+    note: "model is selected at launch via --model= flag; no separate reasoning knob — the model itself determines capability tier"
 
 defaults:
   discovery_lane:
@@ -883,6 +917,8 @@ runtime_bands:
       allowed:
         - provider: gamma
           mode: rush
+        - provider: alpha
+          model: haiku
         - provider: beta
           model: gpt-5.4-mini
           reasoning: low
@@ -896,6 +932,8 @@ runtime_bands:
       allowed:
         - provider: gamma
           mode: smart
+        - provider: alpha
+          model: sonnet
         - provider: beta
           model: gpt-5.4
           reasoning: medium
@@ -909,6 +947,10 @@ runtime_bands:
       allowed:
         - provider: gamma
           mode: smart
+        - provider: alpha
+          model: sonnet
+        - provider: alpha
+          model: opus
         - provider: beta
           model: gpt-5.4
           reasoning: high
@@ -920,6 +962,8 @@ runtime_bands:
           reasoning: high
     xl:
       allowed:
+        - provider: alpha
+          model: opus
         - provider: beta
           model: gpt-5.4
           reasoning: extra_high
@@ -932,6 +976,8 @@ runtime_bands:
   code:
     sm:
       allowed:
+        - provider: alpha
+          model: haiku
         - provider: beta
           model: gpt-5.3-codex
           reasoning: low
@@ -943,6 +989,8 @@ runtime_bands:
           reasoning: low
     md:
       allowed:
+        - provider: alpha
+          model: sonnet
         - provider: beta
           model: gpt-5.3-codex
           reasoning: medium
@@ -954,6 +1002,10 @@ runtime_bands:
           reasoning: medium
     lg:
       allowed:
+        - provider: alpha
+          model: sonnet
+        - provider: alpha
+          model: opus
         - provider: beta
           model: gpt-5.3-codex
           reasoning: high
@@ -965,6 +1017,8 @@ runtime_bands:
           reasoning: high
     xl:
       allowed:
+        - provider: alpha
+          model: opus
         - provider: beta
           model: gpt-5.3-codex
           reasoning: extra_high
@@ -1044,24 +1098,25 @@ All live tmux operations must target `"$WINDOW_ID"`, not `"$WINDOW_NAME"`.
 
 ### Step 2: provision runtime
 
-**MANDATORY:** For `beta`, `delta`, and `gamma`, call the checked-in helper scripts. Do NOT replay raw `/model`, `/models`, `C-t`, `codex --sandbox`, `opencode`, `amp`, or any provider picker keystrokes inline. The scripts are the single source of truth for launch sequences. See "Rule 1" under Core principles.
+**MANDATORY:** For `alpha`, `beta`, `delta`, and `gamma`, call the checked-in helper scripts. Do NOT replay raw `/model`, `/models`, `C-t`, `codex --sandbox`, `claude --dangerously-skip-permissions`, `opencode`, `amp`, or any provider picker keystrokes inline. The scripts are the single source of truth for launch sequences. See "Rule 1" under Core principles.
 
-#### Claude (reserved / future provider)
+#### Claude (alpha)
 
-Claude is reserved for future use. Do not select it during normal orchestration unless `runtime_bands` explicitly maps a lane class to Claude.
+Use the provider adapter instead of replaying Claude launch or model-switch commands inline:
 
 ```bash
-~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "claude --dangerously-skip-permissions"
+~/skills/grand-orchestrator/scripts/spawn_alpha.sh "$WINDOW_ID" "sonnet"
 ```
 
-1. Wait for readiness
-2. Send `/model`
-3. Send menu choice:
+The helper owns launch of `claude --dangerously-skip-permissions --model=<model>`, readiness detection from full-screen capture, model switching, and runtime verification. Concretely: it treats any visible `claude-` marker as "Claude is up", requires the requested `claude-haiku` / `claude-sonnet` / `claude-opus` marker before returning success, exits the wrong model via `/exit`, waits up to 5 seconds for Claude to leave, then falls back to `C-c` before relaunching.
 
-   * `1` for Sonnet 4.6
-   * `5` for Haiku 4.5
-4. Verify selected model from pane output
-5. Write metadata
+Model mapping by lane size:
+
+* `haiku` → alpha lightweight runtime for `doc-sm` and `code-sm`
+* `sonnet` → alpha balanced runtime for `doc-md`, `doc-lg`, `code-md`, and `code-lg`
+* `opus` → alpha maximum-capability runtime for `doc-lg`, `doc-xl`, `code-lg`, and `code-xl`
+
+Alpha has no separate reasoning knob — the model itself determines the capability tier. The timeout default is 10 seconds (higher than other providers due to authentication and connection overhead), and failure messages come from the shared `grand_orchestrator error: ...` helper.
 
 #### Codex
 
@@ -1071,7 +1126,7 @@ Use the provider adapter instead of replaying Codex picker keystrokes inline:
 ~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
 ```
 
-The helper owns launch of `codex --sandbox danger-full-access`, readiness detection, model selection, reasoning selection, and runtime verification.
+The helper owns launch of `codex --sandbox danger-full-access`, readiness detection, model selection, reasoning selection, and runtime verification. Concretely: readiness is a full-screen state line that matches the active model plus reasoning plus quota footer; model selection repeatedly sends `/model` until the `Select Model and Effort` picker opens; reasoning selection uses the `Select Reasoning Level for <model>` menu; and the helper only returns success after the final state line reflects both the requested model and the requested reasoning.
 
 Model mapping:
 
@@ -1094,7 +1149,7 @@ Use the provider adapter instead of replaying OpenCode picker keystrokes inline:
 ~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
 ```
 
-The helper owns launch of `opencode`, main UI readiness detection, `/models`, exact picker-label selection, `Select variant` exit handling, `C-t` cycling, and `Build ...` verification.
+The helper owns launch of `opencode`, main UI readiness detection, `/models`, exact picker-label selection, `Select variant` exit handling, `C-t` cycling, and `Build ...` verification. Main UI readiness means: a visible `Build ...` line is present, `ctrl+p commands` is visible, and `Select variant` is not on screen. If `Select variant` is open unexpectedly, the helper tries `Enter` up to 3 times to close it before continuing.
 
 Model-label mapping:
 
@@ -1108,6 +1163,8 @@ The observed `C-t` cycle order is:
 ```text
 empty -> none -> low -> medium -> high -> xhigh -> empty
 ```
+
+`spawn_delta.sh` expects the UI reasoning label, not the metadata label. For example, pass `xhigh` to the script, then persist `extra_high` in metadata.
 
 Map lane size to the target reasoning label for GPT models:
 
@@ -1123,7 +1180,7 @@ Map lane size to the target reasoning label for Gemini models:
 * **lg** → `high`
 * **xl** → `high`
 
-Treat `empty` as "the `Build ...` line shows no reasoning suffix". The goal is to land on a real reasoning level, never `empty` and never `none` (for GPT). Use whole-screen matching against the concrete `Build ...` runtime line, not bare reasoning words by themselves. Delta is currently mapped for all `doc-*` lanes and all `code-*` lanes.
+Treat `empty` as "the `Build ...` line shows no reasoning suffix". The helper reads the last visible `Build ...` line from the full-screen capture and matches substrings on that line; it does not use a standalone regex-only verifier. The goal is to land on a real reasoning level, never `empty`, and never `none` for GPT models. For Gemini models, `none` is allowed. `spawn_delta.sh` gives up after 8 `C-t` attempts if it cannot reach the requested reasoning. Delta is currently mapped for all `doc-*` lanes and all `code-*` lanes.
 
 #### Amp
 
@@ -1133,9 +1190,9 @@ Use the provider adapter instead of replaying Amp mode-switch keystrokes inline:
 ~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ```
 
-The helper owns launch of `amp`, active-mode detection, switch-only-when-needed behavior, and mode verification.
+The helper owns launch of `amp`, active-mode detection, switch-only-when-needed behavior, and mode verification. Readiness is a full-screen line containing either `──smart──` or `──rush──`. If the current mode is wrong, the helper sends `/`, then the target mode text, and then verifies the resulting mode line.
 
-Mode mapping by lane size: `doc-sm` → `rush`, `doc-md`/`doc-lg` → `smart`, `doc-xl` is not allowed on Amp. Amp has a hard global cap of two active tmux windows. If the selected runtime band allows Amp but two Amp windows are already active, choose the beta runtime from the same allowed band instead.
+Mode mapping by lane size: `doc-sm` → `rush`, `doc-md`/`doc-lg` → `smart`, `doc-xl` is not allowed on Amp. Amp has a documented orchestrator policy cap of two active tmux windows, but `spawn_gamma.sh` itself does not enforce that cap. If the selected runtime band allows Amp but two Amp windows are already active, choose a non-Amp runtime from the same allowed band instead.
 
 Use provider-specific adapters rather than pretending all providers share the same interface.
 
@@ -1254,6 +1311,14 @@ mode: smart
 ```
 
 Set `mode` to `smart` or `rush` as part of runtime metadata.
+
+alpha should also include:
+
+```yaml
+model: sonnet
+```
+
+Set `model` to `haiku`, `sonnet`, or `opus` as part of runtime metadata. Alpha has no separate reasoning field — the model determines the capability tier.
 
 ## `status.yaml`
 
@@ -1509,7 +1574,7 @@ Use `tmux capture-pane` for:
 
 Do not use pane output as the primary structured result path.
 
-For Delta specifically, capture the whole visible pane and parse the `Build ...` line with a concrete regex. Do not verify reasoning by grepping for bare words like `high` or `medium` without the surrounding runtime context.
+For Delta specifically, capture the whole visible pane and parse the `Build ...` line itself. Do not verify reasoning by grepping for bare words like `high` or `medium` without the surrounding runtime context.
 
 ---
 
@@ -1541,9 +1606,10 @@ Route from the discovered context profile, not from rigid categories.
 
 Use these runtime bands throughout routing:
 
-* `Amp smart / gpt-5.4`, `gemini-3.1-pro medium/high` = high-capability general runtime band
-* `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro low` = lightweight general runtime band
-* `gpt-5.3-codex`, `gemini-3.1-pro` = coding runtime band
+* `Amp smart / gpt-5.4 / Claude sonnet`, `gemini-3.1-pro medium/high` = high-capability general runtime band
+* `Amp rush / gpt-5.4-mini / Claude haiku`, `gemini-3.1-pro low` = lightweight general runtime band
+* `Claude opus / gpt-5.4 extra_high` = maximum-capability runtime band
+* `gpt-5.3-codex / Claude sonnet`, `gemini-3.1-pro` = coding runtime band
 
 ## Phase split
 
@@ -1551,8 +1617,8 @@ Every task must be classified into exactly one phase before dispatch:
 
 | Phase | Purpose | Allowed runtimes |
 |---|---|---|
-| Decision phase | planning, decomposition, documentation, analysis, non-code reasoning | `Amp smart / gpt-5.4` or `Amp rush / gpt-5.4-mini` or `gemini-3.1-pro`, depending on work type and complexity |
-| Coding phase | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex` or `gemini-3.1-pro` |
+| Decision phase | planning, decomposition, documentation, analysis, non-code reasoning | `Amp smart / gpt-5.4` or `Amp rush / gpt-5.4-mini` or `Claude haiku / sonnet / opus` or `gemini-3.1-pro`, depending on work type and complexity |
+| Coding phase | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex` or `Claude haiku / sonnet / opus` or `gemini-3.1-pro` |
 
 Hard rules:
 
@@ -1567,14 +1633,14 @@ The lane name and runtime mapping must agree:
 
 | Lane class | Meaning | Allowed runtimes |
 |---|---|---|
-| `doc-sm` | lightweight decision work | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro low` |
-| `doc-md` | standard decision work | `Amp smart / gpt-5.4 medium`, `gemini-3.1-pro medium` |
-| `doc-lg` | harder decision work | `Amp smart / gpt-5.4 high`, `gemini-3.1-pro high` |
-| `doc-xl` | hardest decision work | `gpt-5.4 extra_high`, `gemini-3.1-pro high` |
-| `code-sm` | lightweight coding work | `gpt-5.3-codex low`, `gemini-3.1-pro low` |
-| `code-md` | standard coding work | `gpt-5.3-codex medium`, `gemini-3.1-pro medium` |
-| `code-lg` | harder coding work | `gpt-5.3-codex high`, `gemini-3.1-pro high` |
-| `code-xl` | hardest coding work | `gpt-5.3-codex extra_high`, `gemini-3.1-pro high` |
+| `doc-sm` | lightweight decision work | `Amp rush / gpt-5.4-mini`, `Claude haiku`, `gemini-3.1-pro low` |
+| `doc-md` | standard decision work | `Amp smart / gpt-5.4 medium`, `Claude sonnet`, `gemini-3.1-pro medium` |
+| `doc-lg` | harder decision work | `Amp smart / gpt-5.4 high`, `Claude sonnet / opus`, `gemini-3.1-pro high` |
+| `doc-xl` | hardest decision work | `gpt-5.4 extra_high`, `Claude opus`, `gemini-3.1-pro high` |
+| `code-sm` | lightweight coding work | `gpt-5.3-codex low`, `Claude haiku`, `gemini-3.1-pro low` |
+| `code-md` | standard coding work | `gpt-5.3-codex medium`, `Claude sonnet`, `gemini-3.1-pro medium` |
+| `code-lg` | harder coding work | `gpt-5.3-codex high`, `Claude sonnet / opus`, `gemini-3.1-pro high` |
+| `code-xl` | hardest coding work | `gpt-5.3-codex extra_high`, `Claude opus`, `gemini-3.1-pro high` |
 
 ## Decision-phase work tables
 
@@ -1584,8 +1650,8 @@ Criteria: the primary output is prose for humans to read, such as summaries, doc
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Ordinary explanatory text work | prose requires judgment about what matters, how to explain it, or how to frame it for the audience | explanatory documentation, rationale writeup, design note | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
-| High-stakes text work | persuasive or strategic writing where judgment errors are expensive | strategic memo, recommendation, executive brief | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
+| Ordinary explanatory text work | prose requires judgment about what matters, how to explain it, or how to frame it for the audience | explanatory documentation, rationale writeup, design note | `Amp smart / gpt-5.4`, `Claude sonnet`, `gemini-3.1-pro` |
+| High-stakes text work | persuasive or strategic writing where judgment errors are expensive | strategic memo, recommendation, executive brief | `Amp smart / gpt-5.4`, `Claude sonnet / opus`, `gemini-3.1-pro` |
 
 ### Analytical work
 
@@ -1593,8 +1659,8 @@ Criteria: the task is about deciding what should happen, comparing options, or c
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Standard analytical work | bounded planning or comparison with moderate ambiguity | decomposition, tradeoff analysis, plan review | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
-| Hard analytical work | planning mistakes are expensive and the task needs deeper reasoning | architecture decision, ADR, orchestrator topology, costly decomposition | `Amp smart / gpt-5.4`, `gemini-3.1-pro` |
+| Standard analytical work | bounded planning or comparison with moderate ambiguity | decomposition, tradeoff analysis, plan review | `Amp smart / gpt-5.4`, `Claude sonnet`, `gemini-3.1-pro` |
+| Hard analytical work | planning mistakes are expensive and the task needs deeper reasoning | architecture decision, ADR, orchestrator topology, costly decomposition | `Amp smart / gpt-5.4`, `Claude opus`, `gemini-3.1-pro` |
 
 ### Mechanical work
 
@@ -1602,8 +1668,8 @@ Criteria: the task is tightly scoped, deterministic, and transformation-heavy. T
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Mechanical transform | deterministic, low-judgment transformation with explicit instructions | extraction, formatting, classification, reformatting | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro` |
-| Large but bounded mechanical/text work | large corpus, but still specific and guardrailed | bulk summarization with strict schema, status notes, structured rewrite batch | `Amp rush / gpt-5.4-mini`, `gemini-3.1-pro` |
+| Mechanical transform | deterministic, low-judgment transformation with explicit instructions | extraction, formatting, classification, reformatting | `Amp rush / gpt-5.4-mini`, `Claude haiku`, `gemini-3.1-pro` |
+| Large but bounded mechanical/text work | large corpus, but still specific and guardrailed | bulk summarization with strict schema, status notes, structured rewrite batch | `Amp rush / gpt-5.4-mini`, `Claude haiku`, `gemini-3.1-pro` |
 
 ## Coding-phase work table
 
@@ -1611,7 +1677,7 @@ Criteria: the task changes, explains, investigates, or delivers code-shaped work
 
 | Work shape | Criteria | Examples | Allowed runtimes |
 |---|---|---|---|
-| Coding work | code implementation or investigation inside an already-decided scope | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex`, `gemini-3.1-pro` |
+| Coding work | code implementation or investigation inside an already-decided scope | implementation, debugging investigation, refactor, tests, code review summaries, PR descriptions, migration execution | `gpt-5.3-codex`, `Claude sonnet / opus`, `gemini-3.1-pro` |
 
 ## Reasoning levels
 
@@ -1627,8 +1693,11 @@ Reasoning level is chosen after runtime band selection:
 Reasoning guidance by runtime band:
 
 * `Amp smart` is roughly comparable to `gpt-5.4` at `medium` to `high`
-* the hardest decision work should use `gpt-5.4` at `extra_high`
-* only use `Amp rush / gpt-5.4-mini` when the prompt is highly specific, bounded, and includes strong guardrails
+* `Claude sonnet` is roughly comparable to `gpt-5.4` at `medium` to `high`
+* `Claude opus` is roughly comparable to `gpt-5.4` at `extra_high`
+* `Claude haiku` is roughly comparable to `gpt-5.4-mini` / `Amp rush`
+* the hardest decision work should use `gpt-5.4` at `extra_high` or `Claude opus`
+* only use `Amp rush / gpt-5.4-mini / Claude haiku` when the prompt is highly specific, bounded, and includes strong guardrails
 
 ## Runtime tie-break rules
 
@@ -1636,9 +1705,9 @@ When a row allows multiple runtimes:
 
 1. Reuse a strong warm lane first
 2. If no warm lane matches, prefer Amp while active Amp windows are below the global cap of `2`
-3. If Amp is allowed but the cap is full, choose the same-band OpenAI fallback instead
-4. For decision-phase `gpt-5.4` work, prefer the warmer matching lane between `beta` and `delta`; if there is no meaningful warmth difference, default to `beta`
-5. For coding-phase `gpt-5.3-codex` work, prefer the warmer matching lane between `beta` and `delta`; if there is no meaningful warmth difference, default to `beta`
+3. If Amp is allowed but the cap is full, choose the same-band `alpha`, `beta`, or `delta` fallback instead
+4. For decision-phase work, prefer the warmer matching lane among `alpha`, `beta`, and `delta`; if there is no meaningful warmth difference, default to `alpha`
+5. For coding-phase work, prefer the warmer matching lane among `alpha`, `beta`, and `delta`; if there is no meaningful warmth difference, default to `alpha`
 6. If the task moves outside its current scope, use the asking mechanism and let the orchestrator decide whether to answer, escalate, or create a new lane
 
 ---
@@ -1677,6 +1746,7 @@ insufficient_runtime: true
 recommended_phase: doc
 recommended_size: xl
 recommended_allowed_runtimes:
+  - alpha:opus
   - beta:gpt-5.4:extra_high
   - delta:gpt-5.4:extra_high
 reason: Task requires a harder planning decision before execution can continue.
@@ -1815,11 +1885,14 @@ Human tmux navigation (Oh My Tmux tabs) should always reflect:
 
 # Suggested helper scripts
 
-Use the reusable helper layer shipped in this repo's `scripts/` directory. When installed for regular use, that path is typically `~/skills/grand-orchestrator/scripts/`.
+Only five shell scripts are checked in today under `~/skills/grand-orchestrator/scripts/`: `tmux_runtime.sh`, `spawn_alpha.sh`, `spawn_beta.sh`, `spawn_gamma.sh`, and `spawn_delta.sh`.
+
+The additional `repo-local scripts/` names below are conceptual orchestration responsibilities, not checked-in files in the current implementation. Do not assume they exist unless you create them yourself.
 
 ```text
 scripts/
   tmux_runtime.sh
+  spawn_alpha.sh
   spawn_delta.sh
   spawn_beta.sh
   spawn_gamma.sh
@@ -1850,6 +1923,7 @@ WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "
 ~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "$WINDOW_ID" "commands here"
 ~/skills/grand-orchestrator/scripts/tmux_runtime.sh capture-pane "$WINDOW_ID"
 ~/skills/grand-orchestrator/scripts/tmux_runtime.sh kill-window "$WINDOW_ID"
+~/skills/grand-orchestrator/scripts/spawn_alpha.sh "$WINDOW_ID" "sonnet"
 ~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
 ~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "xhigh"
@@ -1858,24 +1932,27 @@ WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "
 The abstraction goal is:
 
 * the orchestrator chooses the target window, runtime, model, and reasoning
-* the adapter handles `tmux send-keys`, sleeps, Enter, pane capture, retries, selector exits, and verification
-* the installed helpers default to a 3-second timeout and should fail fast when the required runtime state does not appear; Beta/Codex uses a 5-second default because cold start is slower in practice
+* the adapter handles `tmux send-keys`, sleeps, Enter, pane capture, selector exits, and verification
+* the installed helpers default to a 3-second timeout and should fail fast when the required runtime state does not appear; Beta/Codex uses a 5-second default because cold start is slower in practice; Alpha/Claude uses a 10-second default because authentication and connection overhead is higher
 * failures return non-zero and print a specific error message that says what check failed
 
 Subcommands available via `~/skills/grand-orchestrator/scripts/tmux_runtime.sh <subcommand>`:
 
-* `create-window WINDOW_NAME` — create a detached window, rename it, and print the live `window_id`
-* `kill-window WINDOW_ID` — kill a window by id
+* `create-window WINDOW_NAME` — create a detached window, wait briefly, rename it by `window_id`, and print the live `window_id`
+* `kill-window TARGET` — kill a window by tmux target (the normal path is `tmux_window_id`, but a name also works)
 * `rename-window OLD NEW` — rename a window
 * `list-windows` — list all tmux windows
 * `send-commands WINDOW_ID "text"` — send text, sleep, then send `Enter`
 * `send-key WINDOW_ID KEY` — send a single special key such as `Enter` or `C-t`
 * `capture-pane WINDOW_ID` — full pane capture for diagnostics
 * `capture-screen WINDOW_ID` — capture the full visible pane for runtime verification
-* `wait-screen WINDOW_ID REGEX` — poll until the visible pane matches the required runtime state
+* `capture-footer WINDOW_ID [LINES]` — currently an alias of `capture-screen`; the optional `LINES` usage text exists but is ignored by the implementation
+* `wait-screen WINDOW_ID REGEX [TIMEOUT] [INTERVAL]` — poll until the visible pane matches the required runtime state; the CLI exits success/failure and does not print the matched screen
+* `wait-footer WINDOW_ID REGEX [TIMEOUT] [INTERVAL]` — currently an alias of `wait-screen`
 
 Recommended provider adapters:
 
+* `spawn_alpha WINDOW_ID MODEL`
 * `spawn_beta WINDOW_ID MODEL REASONING`
 * `spawn_gamma WINDOW_ID MODE`
 * `spawn_delta WINDOW_ID MODEL_LABEL REASONING_LABEL`
@@ -1886,9 +1963,17 @@ These adapters should be the only place that knows provider-specific quirks. The
 
 ### `~/skills/grand-orchestrator/scripts/tmux_runtime.sh`
 
-* centralize low-level `tmux send-keys`, sleeps, Enter, pane capture, and retry helpers
-* expose stable shell helpers such as `send_commands`, `send_key`, `capture_screen`, and `wait_for_screen`
+* centralize low-level `tmux send-keys`, sleeps, Enter, pane capture, and polling helpers
+* expose stable shell helpers such as `send_commands`, `send_key`, `capture_screen`, `capture_footer`, `wait_for_screen`, and `wait_for_footer`
 * emit consistent failure messages and non-zero exit codes
+
+### `~/skills/grand-orchestrator/scripts/spawn_alpha.sh`
+
+* launch `claude --dangerously-skip-permissions --model=<model>` in the designated tmux window
+* detect readiness by matching the model's screen pattern (e.g. `claude-sonnet` for sonnet)
+* if already running with the wrong model, exit via `/exit` (with `C-c` fallback) and relaunch with the correct `--model=` flag
+* verify the current model from pane output before returning success
+* fail clearly if the model cannot be verified or the screen state never becomes ready
 
 ### `~/skills/grand-orchestrator/scripts/spawn_delta.sh`
 
@@ -1902,16 +1987,21 @@ These adapters should be the only place that knows provider-specific quirks. The
 ### `~/skills/grand-orchestrator/scripts/spawn_beta.sh`
 
 * launch `codex --sandbox danger-full-access` in the designated tmux window
+* treat readiness as a state-line match on the full-screen capture, not a generic prompt check
+* open the model picker by repeatedly sending `/model` until `Select Model and Effort` appears
 * select the requested model and reasoning using Codex-specific controls
 * verify the selected runtime before returning success
-* fail clearly if the model picker or reasoning selection does not complete
+* fail clearly if the model picker does not open, the model does not stick, or the final `model + reasoning` state is not reached
 
 ### `~/skills/grand-orchestrator/scripts/spawn_gamma.sh`
 
 * launch `amp` in the designated tmux window
+* treat readiness as a mode line containing `──smart──` or `──rush──`
 * verify the active mode before switching
 * switch only when needed
 * fail clearly if the mode cannot be verified or changed
+
+The sections below describe orchestration responsibilities that are not backed by checked-in shell scripts in the current implementation. They are design guidance only.
 
 ### `discover_context.sh`
 
@@ -1927,7 +2017,7 @@ These adapters should be the only place that knows provider-specific quirks. The
 
 * compute `lane_key = <dir_abbrev>-<doc_or_code>-<size>-<lane>` and `window_name = <dir_abbrev>|<doc_or_code>|<size>|<lane>`
 * create or repair tmux window using a captured `WINDOW_ID`, not a bare rename
-* call `spawn_beta.sh`, `spawn_delta.sh`, or `spawn_gamma.sh` for provider-specific launch, selection, and verification instead of re-implementing raw picker keystrokes inline
+* call `spawn_alpha.sh`, `spawn_beta.sh`, `spawn_delta.sh`, or `spawn_gamma.sh` for provider-specific launch, selection, and verification instead of re-implementing raw picker keystrokes inline
 * warm the lane with discovered context
 * write metadata including refreshed `tmux_window_id`
 
@@ -1953,7 +2043,7 @@ These adapters should be the only place that knows provider-specific quirks. The
 ### `reconcile_lanes.sh`
 
 * walk `.tmux/*/`
-* run `tmux list-windows` to get live window state
+* run `~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows` to get live window state
 * compare desired lanes to live tmux windows
 * repair drift
 * recreate missing windows
@@ -2007,7 +2097,7 @@ Read the following files to reconstruct full situational awareness:
 4. `.tmux/*/status.yaml` — state of each lane (idle, running, done, needs_input, failed)
 5. `.tmux/*/meta.yaml` — scope keywords and identity of each lane
 6. `.tmux/shared_board.yaml` — any open cross-lane questions
-7. `tmux list-windows` — which windows are still alive
+7. `~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows` — which windows are still alive
 
 After reading, build a situational summary:
 - Which lanes exist and their states
@@ -2046,7 +2136,7 @@ For each lane with `task_id != null`:
 
 ```text
 1.  user says "grand orchestrator"
-2.  rename current window to "orchestrator" (tmux rename-window "orchestrator")
+2.  rename the current window to `orchestrator` via `tmux_runtime.sh rename-window`, using `tmux display-message -p '#{window_id}'` only to discover the current window id
 3.  run orchestrator onboarding (see "Orchestrator onboarding" section):
     - if .tmux/ does not exist → fresh start: create directory, journal, board, runtime
     - if .tmux/ exists → resume: read all state files, summarize, ask user before proceeding
@@ -2059,7 +2149,7 @@ For each lane with `task_id != null`:
 9.  reuse the best matching warm lane or create a new one
 10. resolve `phase`, `size`, and provider/runtime per lane
 11. compute `lane_key = <dir_abbrev>-<doc_or_code>-<size>-<lane>` and `window_name = <dir_abbrev>|<doc_or_code>|<size>|<lane>`
-12. reconcile lane directory and live tmux windows (tmux list-windows)
+12. reconcile lane directory and live tmux windows (`~/skills/grand-orchestrator/scripts/tmux_runtime.sh list-windows`)
 13. provision or reuse the window using a captured `WINDOW_ID`, then persist `tmux_window_id` in metadata
 14. warm the lane using Template A (new lane) or Template B (replacement subagent) from "Phase 2: discovered-context warmup"
 15. write task file to inbox (with `orchestrator_window: "orchestrator"`)
@@ -2108,7 +2198,7 @@ This skill is working correctly when:
 * cross-lane questions flow through `shared_board.yaml` via orchestrator keystrokes
 * self-resolving agents update their scope before and after digging
 * the chain reaction (post → route → answer → deliver → ack) completes without timer-based polling — the orchestrator never sleep-polls for lane completion
-* provider launch always uses `spawn_beta.sh`, `spawn_delta.sh`, or `spawn_gamma.sh` — never inline `tmux send-keys` with raw provider keystrokes
+* provider launch always uses `spawn_alpha.sh`, `spawn_beta.sh`, `spawn_delta.sh`, or `spawn_gamma.sh` — never inline `tmux send-keys` with raw provider keystrokes
 * orchestrator appends to `.tmux/journal.md` on every significant event — dispatch, complete, board, escalation, decision
 * each lane maintains its own `.tmux/<lane_key>/logs/journal.md` independently
 * a fresh orchestrator instance can reconstruct full state from `.tmux/journal.md` + `lanes.yaml` + `status.yaml` files
@@ -2130,7 +2220,7 @@ Use these defaults when the task has not yet been decomposed further:
 
 # Minimal tmux command cheatsheet
 
-All tmux operations go through `~/skills/grand-orchestrator/scripts/tmux_runtime.sh`. Provider launch uses `spawn_beta.sh`, `spawn_delta.sh`, and `spawn_gamma.sh`. **Never use raw `tmux` commands directly.**
+All tmux operations go through `~/skills/grand-orchestrator/scripts/tmux_runtime.sh`. Provider launch uses `spawn_alpha.sh`, `spawn_beta.sh`, `spawn_delta.sh`, and `spawn_gamma.sh`. **Never use raw `tmux` commands directly** except for the one bootstrap lookup of the current window id via `tmux display-message -p '#{window_id}'` before the orchestrator window has been renamed.
 
 ## Create window
 
