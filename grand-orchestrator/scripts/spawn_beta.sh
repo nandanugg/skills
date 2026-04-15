@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/Users/nanda/skills/grand_orchestrator/scripts/tmux_runtime.sh
 source "$SCRIPT_DIR/tmux_runtime.sh"
 
-GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT="${GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT:-5}"
+GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT="${GRAND_ORCHESTRATOR_BETA_TIMEOUT_DEFAULT:-10}"
 
 usage() {
   cat <<'EOF'

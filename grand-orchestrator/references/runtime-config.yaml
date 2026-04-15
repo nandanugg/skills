@@ -1,0 +1,257 @@
+# Grand Orchestrator Runtime Configuration
+# This is the full example for .tmux/runtime.yaml
+# Create this file when bootstrapping a fresh .tmux/ directory
+
+version: 1
+
+naming:
+  lane_key: "<dir_abbrev>-<doc_or_code>-<size>-<lane>"
+  tmux_window_name: "<dir_abbrev>|<doc_or_code>|<size>|<lane>"
+  # tmux_window_id is not a naming template. It is the live tmux handle
+  # written into each lane's meta.yaml after window creation or repair.
+
+reuse:
+  threshold: 0.72
+  stale_after_hours: 24
+
+providers:
+  beta:
+    launch_cmd: "codex --sandbox danger-full-access"
+    timeout_seconds: 10
+    selector_kind: "interactive_model_picker_then_reasoning_menu"
+    open_selector: "/model"
+    model_picker_title: "Select Model and Effort"
+    reasoning_menu_title_prefix: "Select Reasoning Level for "
+    readiness_detection: "state_line_from_full_screen_capture"
+    readiness_line_regex: "gpt-[^[:space:]]+[[:space:]]+(low|medium|high|extra[[:space:]]high)[[:space:]]+·[[:space:]]+[0-9]+%[[:space:]]+left[[:space:]]+·[[:space:]]+"
+    models:
+      gpt-5.4:
+        key: "1"
+        note: "general-purpose high-capability Codex model"
+      gpt-5.4-mini:
+        key: "2"
+        note: "lightweight Codex model for bounded large-context or mechanical work"
+      gpt-5.3-codex:
+        key: "3"
+        note: "coding-specialist Codex model"
+    reasoning_levels:
+      low:
+        key: "1"
+      medium:
+        key: "2"
+      high:
+        key: "3"
+      extra_high:
+        key: "4"
+        note: "reserved for architectural, high-level, executive, ADR, and planning tasks only"
+
+  delta:
+    launch_cmd: "opencode"
+    timeout_seconds: 10
+    selector_kind: "exact_text_entry_then_variant_screen_cycle"
+    open_selector: "/models"
+    variant_screen_title: "Select variant"
+    variant_screen_exit_key: "Enter"
+    models:
+      gpt-5.4:
+        picker_label: "GPT-5.4 OpenAI"
+        note: "general-purpose high-capability OpenCode model"
+      gpt-5.4-mini:
+        picker_label: "GPT-5.4 mini OpenAI"
+        note: "lightweight OpenCode model for bounded decision work"
+      gpt-5.3-codex:
+        picker_label: "GPT-5.3 Codex OpenAI"
+        note: "coding-specialist OpenCode model"
+      gemini-3.1-pro:
+        picker_label: "Gemini 3.1 Pro Preview Google"
+        note: "Google Gemini 3.1 Pro Preview model"
+    reasoning_levels:
+      low:
+        ui_label: "low"
+      medium:
+        ui_label: "medium"
+      high:
+        ui_label: "high"
+      extra_high:
+        ui_label: "xhigh"
+        note: "UI shows xhigh; metadata remains extra_high"
+    readiness_markers:
+      - "Build"
+      - "ctrl+p commands"
+    readiness_requires_no_variant_screen: true
+    reasoning_detection_source: "Build line parsed from full-screen capture"
+    empty_reasoning_when_no_build_suffix: true
+    reasoning_toggle_key: "C-t"
+    reasoning_cycle_order:
+      - empty
+      - none
+      - low
+      - medium
+      - high
+      - xhigh
+    disallowed_reasoning_states:
+      - empty
+
+  gamma:
+    launch_cmd: "amp"
+    timeout_seconds: 10
+    mode_switch_prefix: "/"
+    readiness_detection: "state line contains ──smart── or ──rush──"
+    modes:
+      smart:
+        command: "smart"
+        note: "default Amp mode; equivalent to gpt-5.4 at medium-high reasoning"
+      rush:
+        command: "rush"
+        note: "lightweight Amp mode; equivalent to gpt-5.4-mini"
+    max_active_windows: 2
+    max_active_windows_note: "orchestrator policy only; spawn_gamma.sh does not enforce this cap"
+
+  alpha:
+    launch_cmd: "claude --dangerously-skip-permissions --model=<model>"
+    timeout_seconds: 10
+    selector_kind: "cli_flag"
+    models:
+      haiku:
+        flag_value: "haiku"
+        screen_pattern: "claude-haiku"
+        note: "lightweight Claude model for bounded, deterministic, low-cost-mistake work"
+      sonnet:
+        flag_value: "sonnet"
+        screen_pattern: "claude-sonnet"
+        note: "balanced Claude model for standard to harder analytical and coding work"
+      opus:
+        flag_value: "opus"
+        screen_pattern: "claude-opus"
+        note: "maximum-capability Claude model for hardest planning, architecture, and complex work"
+    readiness_detection: "full-screen substring match on the selected model pattern"
+    wrong_model_exit_command: "/exit"
+    wrong_model_force_interrupt_after_seconds: 5
+    note: "model is selected at launch via --model= flag; no separate reasoning knob"
+
+defaults:
+  discovery_lane:
+    phase: doc
+    size: md
+
+runtime_bands:
+  doc:
+    sm:
+      allowed:
+        - provider: gamma
+          mode: rush
+        - provider: alpha
+          model: haiku
+        - provider: beta
+          model: gpt-5.4-mini
+          reasoning: low
+        - provider: delta
+          model: gpt-5.4-mini
+          reasoning: low
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: low
+    md:
+      allowed:
+        - provider: gamma
+          mode: smart
+        - provider: alpha
+          model: sonnet
+        - provider: beta
+          model: gpt-5.4
+          reasoning: medium
+        - provider: delta
+          model: gpt-5.4
+          reasoning: medium
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: medium
+    lg:
+      allowed:
+        - provider: gamma
+          mode: smart
+        - provider: alpha
+          model: sonnet
+        - provider: alpha
+          model: opus
+        - provider: beta
+          model: gpt-5.4
+          reasoning: high
+        - provider: delta
+          model: gpt-5.4
+          reasoning: high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
+    xl:
+      allowed:
+        - provider: alpha
+          model: opus
+        - provider: beta
+          model: gpt-5.4
+          reasoning: extra_high
+        - provider: delta
+          model: gpt-5.4
+          reasoning: extra_high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
+  code:
+    sm:
+      allowed:
+        - provider: alpha
+          model: haiku
+        - provider: beta
+          model: gpt-5.3-codex
+          reasoning: low
+        - provider: delta
+          model: gpt-5.3-codex
+          reasoning: low
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: low
+    md:
+      allowed:
+        - provider: alpha
+          model: sonnet
+        - provider: beta
+          model: gpt-5.3-codex
+          reasoning: medium
+        - provider: delta
+          model: gpt-5.3-codex
+          reasoning: medium
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: medium
+    lg:
+      allowed:
+        - provider: alpha
+          model: sonnet
+        - provider: alpha
+          model: opus
+        - provider: beta
+          model: gpt-5.3-codex
+          reasoning: high
+        - provider: delta
+          model: gpt-5.3-codex
+          reasoning: high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
+    xl:
+      allowed:
+        - provider: alpha
+          model: opus
+        - provider: beta
+          model: gpt-5.3-codex
+          reasoning: extra_high
+        - provider: delta
+          model: gpt-5.3-codex
+          reasoning: extra_high
+        - provider: delta
+          model: gemini-3.1-pro
+          reasoning: high
+
+# Written by orchestrator when context limit approaches.
+# Null or absent during normal operation.
+resume_hint: null

@@ -39,10 +39,11 @@ alpha_validate_model() {
 }
 
 alpha_model_screen_pattern() {
+  # Match patterns like "Sonnet 4.6" or "Opus 4.5" in the Claude Code header
   case "$1" in
-    haiku) printf 'claude-haiku\n' ;;
-    sonnet) printf 'claude-sonnet\n' ;;
-    opus) printf 'claude-opus\n' ;;
+    haiku) printf 'Haiku\n' ;;
+    sonnet) printf 'Sonnet\n' ;;
+    opus) printf 'Opus\n' ;;
     *) fail "unsupported alpha model: $1"; return 1 ;;
   esac
 }
@@ -50,7 +51,7 @@ alpha_model_screen_pattern() {
 alpha_ready() {
   local screen
   screen="$(alpha_capture_screen "$1")"
-  [[ "$screen" == *"claude-"* ]]
+  [[ "$screen" == *"Claude Code"* ]]
 }
 
 alpha_ready_with_model() {
@@ -64,11 +65,11 @@ alpha_current_model() {
   local screen
   screen="$(alpha_capture_screen "$1")"
 
-  if [[ "$screen" == *"claude-opus"* ]]; then
+  if [[ "$screen" == *"Opus"* ]]; then
     printf 'opus\n'
-  elif [[ "$screen" == *"claude-sonnet"* ]]; then
+  elif [[ "$screen" == *"Sonnet"* ]]; then
     printf 'sonnet\n'
-  elif [[ "$screen" == *"claude-haiku"* ]]; then
+  elif [[ "$screen" == *"Haiku"* ]]; then
     printf 'haiku\n'
   else
     return 1
