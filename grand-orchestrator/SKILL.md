@@ -45,9 +45,10 @@ WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "
 
 # Provider launch (NEVER replay raw /model, C-t, etc.)
 ~/skills/grand-orchestrator/scripts/spawn_alpha.sh "$WINDOW_ID" "sonnet"
-~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.4" "high"
+~/skills/grand-orchestrator/scripts/spawn_beta.sh "$WINDOW_ID" "gpt-5.3-codex-spark" "medium"
 ~/skills/grand-orchestrator/scripts/spawn_gamma.sh "$WINDOW_ID" "smart"
 ~/skills/grand-orchestrator/scripts/spawn_delta.sh "$WINDOW_ID" "GPT-5.4 OpenAI" "high"
+# Delta also supports Gemini as the backup model family when GPT token limits are hit.
 ```
 
 ### Rule 2 — Wait for callbacks, never sleep-poll
@@ -55,6 +56,39 @@ WINDOW_ID="$(~/skills/grand-orchestrator/scripts/tmux_runtime.sh create-window "
 **NEVER** use `sleep` loops or capture-pane polling. Architecture is callback-driven:
 - Lane finishes → signals via `tmux_runtime.sh send-commands "orchestrator" "..."`
 - Orchestrator processes signals as they arrive
+
+### Rule 3 — Never kill warm lanes to "conserve resources"
+
+**NEVER** kill, remove, or tear down an idle warm lane for memory conservation, resource savings, or "cleanup". RAM is abundant — the host can hold 60+ concurrent terminal sessions.
+
+- Idle lanes are **expected** and **desirable**. An idle lane is a warm context container ready for instant reuse.
+- A lane only becomes `stale` after `stale_after_hours` (default 24h) of inactivity — not after 5 minutes.
+- Stale lanes get **compacted**, not killed. Compaction preserves `context/*` files so the lane can be refreshed with Template B when needed.
+- The **only** valid reasons to kill a window are:
+  1. The user explicitly asks to kill it
+  2. The lane's subagent hit its context limit and needs a fresh process (even then, use Template B to warm a replacement — the lane persists, only the process restarts)
+  3. A `[repair]` action after detecting a crashed/unresponsive window
+
+**If you find yourself reasoning about "freeing resources" or "reducing overhead" to justify killing a lane — stop. That reasoning is wrong. Keep the lane.**
+
+### Rule 4 — Beta runtime contract is explicit
+
+**beta = Codex provider runtime with exact model/reasoning contract.**
+
+- `beta` means launch with the Codex UI flow (`spawn_beta.sh`), then verify provider/model/reasoning before dispatch.
+- A lane is invalid until all three fields match its lane/task contract:
+  - `provider`: beta|alpha|gamma|delta
+  - `model`: exact provider model label
+  - `reasoning`: low|medium|high|extra_high
+- For `task_class: code`, explicit required runtime defaults are:
+  - `code-sm`: `provider=beta`, `model=gpt-5.3-codex-spark`, `reasoning=medium`
+  - `code-md`: `provider=beta`, `model=gpt-5.3-codex-spark`, `reasoning=high`
+  - `code-lg`: `provider=beta`, `model=gpt-5.3-codex-spark`, `reasoning=extra_high`
+  - `code-xl`: `provider=beta`, `model=gpt-5.3-codex`, `reasoning=extra_high` (only when explicitly required)
+- If task metadata provides `required_runtime`, that exact contract overrides defaults.
+- If a lane launches to the wrong model or reasoning, treat it as failed launch and repair it before dispatch.
+- If a launch helper fails, do not recover by raw Codex invocation.
+- A `done` status with `runtime_verified: false` is not acceptable for new dispatch until repaired.
 
 ---
 
@@ -101,9 +135,12 @@ Window name: `<dir_abbrev>|<doc_or_code>|<size>|<lane>` (e.g., `pay|doc|lg|settl
 | doc-sm | haiku, rush, mini |
 | doc-md/lg | sonnet, smart, gpt-5.4 |
 | doc-xl | opus, extra_high |
-| code-* | sonnet/opus, gpt-5.3-codex |
+| code-sm | haiku, gpt-5.3-codex-spark |
+| code-md | sonnet, gpt-5.3-codex-spark |
+| code-lg | sonnet/opus, gpt-5.3-codex-spark |
+| code-xl | opus, gpt-5.3-codex |
 
-**Before spawning:** Load [provider-matrix.md](references/provider-matrix.md) for exact spawn commands, model arguments, reasoning levels, and tie-break rules when multiple runtimes are allowed.
+**Before spawning:** Load [provider-matrix.md](references/provider-matrix.md) for exact spawn commands, model arguments, reasoning levels, Gemini fallback guidance, and tie-break rules when multiple runtimes are allowed.
 
 ---
 
@@ -147,13 +184,24 @@ Output a context profile:
 
 ```yaml
 domain: payments settlement flow
+task_class: code            # code | doc | ops | triage
+interaction_mode: edit       # edit | review | diagnose
 task_shape: investigation
+required_runtime:
+  provider: beta
+  model: gpt-5.3-codex-spark
+  reasoning: medium
 hotspots: [internal/settlement, internal/ledger]
 needs_code_changes: false
 phase: doc
 size: lg
 suggested_lane: settlement
 ```
+
+Runtime contract check before dispatch:
+- If task fields include `task_class` + `interaction_mode`, use those to select the contract.
+- Validate chosen lane runtime from contract against live lane meta/status before marking ready.
+- `wrong model or wrong reasoning` => mark lane `failed`, trigger repair/retry, do not dispatch.
 
 ## Lane Reuse
 
@@ -191,14 +239,22 @@ Inject warmup prompt via `send-commands`:
 ## Input (Task Dispatch)
 
 1. Write task file to `inbox/<task_id>.yaml` with `callback_cmd`
-2. Inject keystrokes telling agent to read task, write result, run `callback_cmd`
+2. Inject keystrokes telling agent to read task, write result, **execute** `callback_cmd`
 
 ```yaml
 task_id: task-004
 goal: Investigate payout mismatch
+task_class: code
+interaction_mode: review
+required_runtime:
+  provider: beta
+  model: gpt-5.3-codex-spark
+  reasoning: medium
 output_path: .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml
 callback_cmd: ~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Task task-004 complete..."
 ```
+
+**Critical:** `callback_cmd` is a shell command the lane must execute via Bash when the task is done. It routes through tmux to signal the orchestrator window. Without execution, the orchestrator never receives the completion signal.
 
 ## Output (Result)
 
@@ -293,11 +349,12 @@ Orchestrator decides: upgrade, create new lane, or continue.
 
 1. Always windows, not sessions
 2. Always survey + discovery before spawning
-3. Treat lanes as warm context containers
+3. Treat lanes as warm context containers — **never kill idle lanes** (see Rule 3)
 4. File-based output, keystroke-based input
 5. Reuse warm lanes when context match is strong
 6. Use `tmux_window_id` for live commands, `tmux_window_name` for identity
 7. Gamma max 2 active windows
+8. Compacted lanes are cheap — their `context/*` files serve as reference for future lanes even without a live process
 
 ---
 

@@ -4,7 +4,7 @@ UNLINK_SKILLS := $(sort $(SKILLS) $(LEGACY_SKILLS))
 
 # Destinations
 CLAUDE_BASE := $(HOME)/.claude/skills
-CODEX_BASE := $(HOME)/.agents/skills
+CODEX_BASE := $(HOME)/.codex/skills
 OPENCODE_BASE := $(HOME)/.config/opencode/skills
 
 define SKILL_RULE

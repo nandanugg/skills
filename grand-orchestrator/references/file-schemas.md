@@ -53,7 +53,7 @@ tmux_window_name: pay|doc|lg|settlement
 tmux_window_id: "@12"
 provider: beta                    # alpha, beta, gamma, delta
 model: gpt-5.4                    # provider-specific
-reasoning: high                   # beta/delta only
+reasoning: high                   # beta/delta only; delta varies by model family (GPT: low-high/xhigh, Gemini: low-high)
 mode: smart                       # gamma only
 phase: doc                        # doc or code
 size: lg                          # sm, md, lg, xl
@@ -94,7 +94,8 @@ running           — working on task_id
 needs_input       — blocked on question
 done              — result written, awaiting collection
 failed            — needs repair or reset
-stale             — should not reuse until refreshed
+stale             — idle beyond stale_after_hours; compact or refresh before reuse
+compacted         — window killed, context/* preserved; revive with Template B when needed
 ```
 
 ## lanes.yaml
@@ -115,14 +116,24 @@ lanes:
 
 ```yaml
 task_id: task-004
+task_class: code           # code | doc | ops | triage
+interaction_mode: edit      # edit | review | diagnose
 goal: Investigate payout mismatch between gateway reports and internal ledger.
 constraints:
   - Preserve auditability
   - Call out assumptions explicitly
+required_runtime:
+  provider: beta
+  model: gpt-5.3-codex-spark
+  reasoning: medium
 output_path: .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml
 context_delta_path: .tmux/pay-doc-lg-settlement/context/last_delta.yaml
 callback_cmd: ~/skills/grand-orchestrator/scripts/tmux_runtime.sh send-commands "orchestrator" "Task task-004 complete. Result at .tmux/pay-doc-lg-settlement/outbox/task-004.result.yaml"
 ```
+
+`required_runtime` is the contract for lane selection and pre-dispatch validation.
+`task_class` and `interaction_mode` drive lane selection defaults:
+- `task_class: code` + `interaction_mode: edit` -> prefer `beta/gpt-5.3-codex-spark` for sm/md/lg unless the task requires otherwise.
 
 ## Result File (outbox/)
 

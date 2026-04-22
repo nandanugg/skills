@@ -55,21 +55,34 @@ alpha_ready() {
 }
 
 alpha_ready_with_model() {
-  local screen pattern
-  screen="$(alpha_capture_screen "$1")"
+  local last_header pattern
   pattern="$(alpha_model_screen_pattern "$2")"
-  [[ "$screen" == *"$pattern"* ]]
+  # Check only the LAST Claude Code header line to avoid matching stale
+  # scrollback from a previous session still visible in capture-pane.
+  last_header="$(alpha_capture_screen "$1" \
+    | grep -iE '^\S*[▜▛█]' \
+    | tail -1)" || true
+  [[ -n "$last_header" && "$last_header" == *"$pattern"* ]]
 }
 
 alpha_current_model() {
-  local screen
-  screen="$(alpha_capture_screen "$1")"
+  local last_model
+  # Use the LAST model header line in the screen buffer to handle
+  # scrollback from previous sessions still visible in capture-pane.
+  last_model="$(alpha_capture_screen "$1" \
+    | grep -iE 'Opus|Sonnet|Haiku' \
+    | grep -iE '^\S*[▜▛█]' \
+    | tail -1)" || true
 
-  if [[ "$screen" == *"Opus"* ]]; then
+  if [[ -z "$last_model" ]]; then
+    return 1
+  fi
+
+  if [[ "$last_model" == *"Opus"* ]]; then
     printf 'opus\n'
-  elif [[ "$screen" == *"Sonnet"* ]]; then
+  elif [[ "$last_model" == *"Sonnet"* ]]; then
     printf 'sonnet\n'
-  elif [[ "$screen" == *"Haiku"* ]]; then
+  elif [[ "$last_model" == *"Haiku"* ]]; then
     printf 'haiku\n'
   else
     return 1
@@ -98,6 +111,74 @@ alpha_wait_ready() {
   done
 }
 
+alpha_model_picker_open() {
+  local screen
+  screen="$(alpha_capture_screen "$1")"
+  [[ "$screen" == *"Select model"* ]]
+}
+
+alpha_open_model_picker() {
+  local window_id="$1"
+  local timeout="${2:-$GRAND_ORCHESTRATOR_ALPHA_TIMEOUT_DEFAULT}"
+  local start
+
+  start=$SECONDS
+  while true; do
+    if alpha_model_picker_open "$window_id"; then
+      return 0
+    fi
+
+    send_commands "$window_id" "/model" 0.1
+    sleep 0.5
+
+    if alpha_model_picker_open "$window_id"; then
+      return 0
+    fi
+
+    if (( SECONDS - start >= timeout )); then
+      fail "alpha model picker did not open for window $window_id within ${timeout}s"
+      return 1
+    fi
+
+    sleep 0.2
+  done
+}
+
+alpha_picker_model_number() {
+  local window_id="$1"
+  local target_model="$2"
+  local screen line number
+  local pattern
+  pattern="$(alpha_model_screen_pattern "$target_model")"
+  local picker_row='^[[:space:]]*(❯)?[[:space:]]*([0-9]+)\.'
+
+  screen="$(alpha_capture_screen "$window_id")"
+  while IFS= read -r line; do
+    if [[ "$line" =~ $picker_row && "$line" == *"$pattern"* ]]; then
+      printf '%s\n' "${BASH_REMATCH[2]}"
+      return 0
+    fi
+  done <<< "$screen"
+
+  fail "alpha model '$target_model' not found in picker for window $window_id"
+  return 1
+}
+
+alpha_select_model() {
+  local window_id="$1"
+  local model="$2"
+  local model_number
+
+  alpha_open_model_picker "$window_id"
+  model_number="$(alpha_picker_model_number "$window_id" "$model")"
+  send_key "$window_id" "$model_number"
+  sleep 0.3
+  send_key "$window_id" Enter
+  sleep 0.3
+
+  alpha_wait_ready "$window_id" "$model" "$GRAND_ORCHESTRATOR_ALPHA_TIMEOUT_DEFAULT" 0.3
+}
+
 alpha_launch_if_needed() {
   local window_id="$1"
   local model="$2"
@@ -106,20 +187,13 @@ alpha_launch_if_needed() {
     return 0
   fi
 
-  # If Claude is running with a different model, exit first
+  # Claude is running with a different model — use /model to switch
   if alpha_ready "$window_id"; then
-    send_commands "$window_id" "/exit" 0.2
-    local exit_start=$SECONDS
-    while alpha_ready "$window_id"; do
-      if (( SECONDS - exit_start >= 5 )); then
-        send_key "$window_id" C-c
-        sleep 0.5
-        break
-      fi
-      sleep 0.3
-    done
+    alpha_select_model "$window_id" "$model"
+    return 0
   fi
 
+  # No Claude running — launch fresh
   send_commands "$window_id" "claude --dangerously-skip-permissions --model=$model" 0.2
   alpha_wait_ready "$window_id" "$model" "$GRAND_ORCHESTRATOR_ALPHA_TIMEOUT_DEFAULT" 0.3
 }

@@ -34,6 +34,9 @@ providers:
       gpt-5.3-codex:
         key: "3"
         note: "coding-specialist Codex model"
+      gpt-5.3-codex-spark:
+        key: "4"
+        note: "ultra-fast coding-specialist Codex model for lighter coding lanes"
     reasoning_levels:
       low:
         key: "1"
@@ -43,7 +46,7 @@ providers:
         key: "3"
       extra_high:
         key: "4"
-        note: "reserved for architectural, high-level, executive, ADR, and planning tasks only"
+        note: "maximum-effort mode for deep work; used for architectural, coding-deep, or explicitly required tasks"
 
   delta:
     launch_cmd: "opencode"
@@ -137,6 +140,7 @@ defaults:
 runtime_bands:
   doc:
     sm:
+      required_task_class: doc
       allowed:
         - provider: gamma
           mode: rush
@@ -152,6 +156,7 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: low
     md:
+      required_task_class: doc
       allowed:
         - provider: gamma
           mode: smart
@@ -167,6 +172,7 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: medium
     lg:
+      required_task_class: doc
       allowed:
         - provider: gamma
           mode: smart
@@ -184,6 +190,10 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: high
     xl:
+      required_task_class: doc
+      required_interaction_modes:
+        - review
+        - diagnose
       allowed:
         - provider: alpha
           model: opus
@@ -198,12 +208,16 @@ runtime_bands:
           reasoning: high
   code:
     sm:
+      required_task_class: code
+      required_interaction_modes:
+        - edit
+        - review
       allowed:
         - provider: alpha
           model: haiku
         - provider: beta
-          model: gpt-5.3-codex
-          reasoning: low
+          model: gpt-5.3-codex-spark
+          reasoning: medium
         - provider: delta
           model: gpt-5.3-codex
           reasoning: low
@@ -211,12 +225,16 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: low
     md:
+      required_task_class: code
+      required_interaction_modes:
+        - edit
+        - review
       allowed:
         - provider: alpha
           model: sonnet
         - provider: beta
-          model: gpt-5.3-codex
-          reasoning: medium
+          model: gpt-5.3-codex-spark
+          reasoning: high
         - provider: delta
           model: gpt-5.3-codex
           reasoning: medium
@@ -224,14 +242,18 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: medium
     lg:
+      required_task_class: code
+      required_interaction_modes:
+        - edit
+        - review
       allowed:
         - provider: alpha
           model: sonnet
         - provider: alpha
           model: opus
         - provider: beta
-          model: gpt-5.3-codex
-          reasoning: high
+          model: gpt-5.3-codex-spark
+          reasoning: extra_high
         - provider: delta
           model: gpt-5.3-codex
           reasoning: high
@@ -239,6 +261,11 @@ runtime_bands:
           model: gemini-3.1-pro
           reasoning: high
     xl:
+      required_task_class: code
+      required_interaction_modes:
+        - edit
+        - review
+        - diagnose
       allowed:
         - provider: alpha
           model: opus

@@ -72,6 +72,23 @@ Output structure for recall: Front-load every output with recall anchors. First 
 
 Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator with `tmux_runtime.sh send-commands`. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator the same way so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
 
+Task handling protocol: When you receive a task in `inbox/<task_id>.yaml`, it contains:
+- `task_id`: unique identifier
+- `task_class`: code | doc | ops | triage
+- `interaction_mode`: edit | review | diagnose
+- `goal`: what to accomplish
+- `required_runtime`: required runtime contract for this task
+- `constraints`: guidelines to follow
+- `output_path`: where to write your result file
+- `callback_cmd`: **a bash command you must execute when done**
+
+The `callback_cmd` is critical — it signals the orchestrator that your task is complete. When you finish:
+1. Write your result to `output_path`
+2. Update `status.yaml` state to `done`
+3. **Execute `callback_cmd` as a bash command** (run it via Bash tool, not just echo it)
+
+The callback routes through tmux to notify the orchestrator window. Without executing it, the orchestrator never knows you finished.
+
 Await your first task in inbox/.
 ```
 
@@ -100,6 +117,23 @@ Journaling: maintain logs/journal.md. Append a timestamped markdown entry when y
 Output structure for recall: Front-load every output with recall anchors. First 3 lines of any result: task_id, lane_key, summary with implementation keywords (handler names, job names, tables, flags). This prevents "Lost In The Middle" attention decay.
 
 Board protocol: before asking a cross-lane question, read all `.tmux/*/meta.yaml` `scope_keywords`. If exactly one other lane owns the topic, write a request file in `requests/` and signal the orchestrator with `tmux_runtime.sh send-commands`. If no lane owns it, expand your own `scope_keywords`, self-resolve, and signal the orchestrator the same way so it can mirror the update into global files. If more than one lane matches, write a request file and escalate — do not pick a winner yourself.
+
+Task handling protocol: When you receive a task in `inbox/<task_id>.yaml`, it contains:
+- `task_id`: unique identifier
+- `task_class`: code | doc | ops | triage
+- `interaction_mode`: edit | review | diagnose
+- `goal`: what to accomplish
+- `required_runtime`: required runtime contract for this task
+- `constraints`: guidelines to follow
+- `output_path`: where to write your result file
+- `callback_cmd`: **a bash command you must execute when done**
+
+The `callback_cmd` is critical — it signals the orchestrator that your task is complete. When you finish:
+1. Write your result to `output_path`
+2. Update `status.yaml` state to `done`
+3. **Execute `callback_cmd` as a bash command** (run it via Bash tool, not just echo it)
+
+The callback routes through tmux to notify the orchestrator window. Without executing it, the orchestrator never knows you finished.
 
 If an interrupted task exists, continue it. Otherwise, set status.yaml state to idle and await dispatch.
 ```

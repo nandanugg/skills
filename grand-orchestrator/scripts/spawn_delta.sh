@@ -17,13 +17,24 @@ Examples:
   spawn_delta.sh @12 "GPT-5.4 OpenAI" xhigh
   spawn_delta.sh @13 "GPT-5.4 mini OpenAI" low
   spawn_delta.sh @14 "GPT-5.3 Codex OpenAI" medium
+  spawn_delta.sh @15 "Gemini 3.1 Pro Preview Google" medium
 EOF
 }
 
-delta_validate_model() {
+delta_supported_models() {
+  printf 'GPT-5.4 mini OpenAI\n'
+  printf 'GPT-5.4 OpenAI\n'
+  printf 'GPT-5.3 Codex OpenAI\n'
+  printf 'Gemini 3.1 Pro Preview Google\n'
+}
+
+delta_model_family() {
   case "$1" in
-    "GPT-5.4 mini OpenAI"|"GPT-5.4 OpenAI"|"GPT-5.3 Codex OpenAI"|"Gemini 3.1 Pro Preview Google")
-      return 0
+    "GPT-5.4 mini OpenAI"|"GPT-5.4 OpenAI"|"GPT-5.3 Codex OpenAI")
+      printf 'gpt\n'
+      ;;
+    "Gemini 3.1 Pro Preview Google")
+      printf 'gemini\n'
       ;;
     *)
       fail "unsupported delta model label: $1"
@@ -32,38 +43,45 @@ delta_validate_model() {
   esac
 }
 
+delta_validate_model() {
+  delta_model_family "$1" >/dev/null
+}
+
+delta_reasoning_levels() {
+  local family
+
+  family="$(delta_model_family "$1")" || return 1
+  case "$family" in
+    gemini)
+      printf 'low\n'
+      printf 'medium\n'
+      printf 'high\n'
+      ;;
+    gpt)
+      printf 'low\n'
+      printf 'medium\n'
+      printf 'high\n'
+      printf 'xhigh\n'
+      ;;
+  esac
+}
+
 delta_validate_reasoning() {
   local model_label="$1"
   local reasoning_label="$2"
+  local supported_reasoning
+  local family
 
-  case "$model_label" in
-    *"Gemini"*)
-      case "$reasoning_label" in
-        none|low|medium|high)
-          return 0
-          ;;
-        *)
-          fail "unsupported delta reasoning label for Gemini: $reasoning_label"
-          return 1
-          ;;
-      esac
-      ;;
-    *"GPT"*)
-      case "$reasoning_label" in
-        low|medium|high|xhigh)
-          return 0
-          ;;
-        *)
-          fail "unsupported delta reasoning label for GPT: $reasoning_label"
-          return 1
-          ;;
-      esac
-      ;;
-    *)
-      fail "unsupported model for reasoning validation: $model_label"
-      return 1
-      ;;
-  esac
+  family="$(delta_model_family "$model_label")" || return 1
+
+  while IFS= read -r supported_reasoning; do
+    if [[ "$reasoning_label" == "$supported_reasoning" ]]; then
+      return 0
+    fi
+  done < <(delta_reasoning_levels "$model_label")
+
+  fail "unsupported delta reasoning label for ${family}: $reasoning_label"
+  return 1
 }
 
 delta_capture_screen() {
@@ -161,18 +179,20 @@ delta_launch_if_needed() {
 }
 
 delta_read_reasoning() {
+  local model_label="$1"
+  local window_id="$2"
   local build_line
+  local family
 
-  build_line="$(delta_build_line "$1")"
+  build_line="$(delta_build_line "$window_id")"
   if [[ -z "$build_line" ]]; then
-    fail "delta build footer missing for window $1"
+    fail "delta build footer missing for window $window_id"
     return 1
   fi
 
+  family="$(delta_model_family "$model_label")" || return 1
+
   case "$build_line" in
-    *"· none"*)
-      printf 'none\n'
-      ;;
     *"· low"*)
       printf 'low\n'
       ;;
@@ -223,11 +243,12 @@ delta_select_model() {
 
 delta_cycle_reasoning() {
   local window_id="$1"
-  local target="$2"
+  local model_label="$2"
+  local target="$3"
   local current
   local attempts=0
 
-  current="$(delta_read_reasoning "$window_id")"
+  current="$(delta_read_reasoning "$model_label" "$window_id")"
   while [[ "$current" != "$target" ]]; do
     attempts=$((attempts + 1))
     if (( attempts > 8 )); then
@@ -238,7 +259,7 @@ delta_cycle_reasoning() {
     send_key "$window_id" C-t
     sleep 0.2
     delta_close_selector_if_open "$window_id" || true
-    current="$(delta_read_reasoning "$window_id")"
+    current="$(delta_read_reasoning "$model_label" "$window_id")"
   done
 }
 
@@ -257,10 +278,10 @@ main() {
   delta_validate_reasoning "$model_label" "$reasoning_label"
   delta_launch_if_needed "$window_id"
   delta_select_model "$window_id" "$model_label"
-  delta_cycle_reasoning "$window_id" "$reasoning_label"
+  delta_cycle_reasoning "$window_id" "$model_label" "$reasoning_label"
 
   build_line="$(delta_build_line "$window_id")"
-  if [[ "$build_line" != *"$model_label"* || "$build_line" != *"· $reasoning_label"* ]]; then
+  if [[ "$build_line" != *"$model_label"* || "$(delta_read_reasoning "$model_label" "$window_id")" != "$reasoning_label" ]]; then
     fail "delta runtime verification failed for window $window_id: $build_line"
     exit 1
   fi
