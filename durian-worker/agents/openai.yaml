@@ -1,0 +1,4 @@
+interface:
+  display_name: "Durian Worker"
+  short_description: "Work on DurianPay code with oracle-first grounding"
+  default_prompt: "Use $durian-worker to handle this DurianPay task by grounding the answer in durian-oracle, checking relevant repos, and calling out any freshness or evidence gaps."

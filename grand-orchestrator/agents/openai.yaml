@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grand Orchestrator"
+  short_description: "Run a tmux-based multi-agent orchestration workflow"
+  default_prompt: "Use $grand-orchestrator to route this work through a tmux-based multi-agent runtime with reusable lanes, explicit runtime contracts, and callback-driven completion."

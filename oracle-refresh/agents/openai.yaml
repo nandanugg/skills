@@ -1,4 +1,4 @@
 interface:
   display_name: "Oracle Refresh"
-  short_description: "Refresh durian-oracle with service validation"
-  default_prompt: "Use $oracle-refresh to pull the latest durian-oracle changes, refresh services first, update downstream non-service docs from that baseline, then run the service-led validation and reference pass."
+  short_description: "Refresh durian-oracle from services and validation lanes"
+  default_prompt: "Use $oracle-refresh to pull the latest durian-oracle and service repos, refresh service docs first, update downstream docs from that baseline, and then run service-led validation."

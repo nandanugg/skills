@@ -1,0 +1,4 @@
+interface:
+  display_name: "Durian Reviewer"
+  short_description: "Review DurianPay artifacts against code reality"
+  default_prompt: "Use $durian-reviewer to review this DurianPay artifact against oracle-context and the current code, starting with the existing flow and any drift from docs."
